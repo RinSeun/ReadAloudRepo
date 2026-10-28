@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App icon: white fish on a red circle -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FA1E4E"
+        android:pathData="M24,2A22,22 0,1 1,23.99 2Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8,24C12,15 26,13 32,24C26,35 12,33 8,24Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,24L41,16L41,32Z" />
+    <path
+        android:fillColor="#FA1E4E"
+        android:pathData="M14,22.5A2,2 0,1 1,13.99 22.5Z" />
+</vector>
