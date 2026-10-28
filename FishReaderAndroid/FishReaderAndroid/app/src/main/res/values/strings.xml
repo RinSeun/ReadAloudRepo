@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Fish Reader</string>
-    <!-- The label shown in the text-selection menu -->
-    <string name="read_action">Read audio</string>
-    <!-- Quick Settings tile -->
-    <string name="tile_label">Fish Read</string>
-</resources>
