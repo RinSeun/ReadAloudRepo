@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Fish Reader</string>
-    <!-- The label shown in the text-selection menu -->
-    <string name="read_action">Read aloud</string>
-</resources>
