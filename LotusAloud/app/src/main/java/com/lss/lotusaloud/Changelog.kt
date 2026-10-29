@@ -9,6 +9,14 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "\uD83E\uDEB7 Big lotus & Fish credit",
+            listOf(
+                "A big glowing lotus at the top - it gently breathes while reading. Tap it to follow along.",
+                "Your Fish Audio credit balance is shown under it, with a warning when it gets low. Tap it to refresh.",
+                "The \u201c\u2728 New\u201d button got a fresh look.",
+            ),
+        ),
+        Entry(
             "\uD83D\uDCD6 Follow along, links & long reads",
             listOf(
                 "Follow-along screen: see the text as it's read, with the current sentence highlighted. Tap any sentence to jump there.",

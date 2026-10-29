@@ -64,6 +64,11 @@ class MainActivity : Activity() {
     private lateinit var shotsBtn: Button
     private var historyStamp = 0L
     private var waitingForOverlay = false
+    private lateinit var heroLogo: android.widget.ImageView
+    private lateinit var creditPill: TextView
+    private var creditText = ""
+    private var creditColor = 0
+    private var breathing: android.animation.ObjectAnimator? = null
 
     private val poll = object : Runnable {
         override fun run() {
@@ -85,18 +90,53 @@ class MainActivity : Activity() {
         setContentView(scroll)
         var cur: LinearLayout
 
-        // ---- header: logo + name
+        // ---- header: name + "New" pill
         val header = row(root, 0)
-        val logo = android.widget.ImageView(this)
-        logo.setImageResource(resources.getIdentifier("ic_bubble", "drawable", packageName))
-        header.addView(logo, LinearLayout.LayoutParams(dp(64), dp(64)))
         val titles = LinearLayout(this)
         titles.orientation = LinearLayout.VERTICAL
-        titles.setPadding(dp(14), 0, 0, 0)
         header.addView(titles, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         label(titles, "Lotus Aloud", 26f, bold = true)
         label(titles, "MADE FOR LSS ONLY", 11f, bold = true, color = accent)
-        button(header, "\u2728 New", 0f, primary = true) { showWhatsNew() }
+        val newPill = TextView(this)
+        newPill.text = "\u2728 New"
+        newPill.textSize = 13f
+        newPill.setTextColor(Color.WHITE)
+        newPill.setTypeface(newPill.typeface, Typeface.BOLD)
+        newPill.background = rounded(Color.argb(40, 255, 255, 255), 99, Color.argb(50, 255, 255, 255))
+        newPill.setPadding(dp(14), dp(7), dp(14), dp(7))
+        newPill.setOnClickListener { showWhatsNew() }
+        header.addView(newPill, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
+
+        // ---- the big glowing lotus (it gently "breathes" while reading)
+        val hero = android.widget.FrameLayout(this)
+        val glow = View(this)
+        glow.background = GradientDrawable().apply {
+            gradientType = GradientDrawable.RADIAL_GRADIENT
+            gradientRadius = dp(110).toFloat()
+            colors = intArrayOf(Color.argb(110, 250, 30, 78), Color.argb(0, 250, 30, 78))
+        }
+        hero.addView(glow, android.widget.FrameLayout.LayoutParams(dp(240), dp(240), Gravity.CENTER))
+        heroLogo = android.widget.ImageView(this)
+        heroLogo.setImageResource(resources.getIdentifier("ic_lotus_hero", "drawable", packageName))
+        hero.addView(heroLogo, android.widget.FrameLayout.LayoutParams(dp(160), dp(160), Gravity.CENTER))
+        val heroLp = LinearLayout.LayoutParams(MATCH_PARENT, dp(200))
+        heroLp.topMargin = dp(4)
+        root.addView(hero, heroLp)
+        heroLogo.setOnClickListener { startActivity(Intent(this, ReaderActivity::class.java)) }
+
+        // ---- Fish credit balance (tap to refresh)
+        creditPill = TextView(this)
+        creditPill.textSize = 13f
+        creditPill.gravity = Gravity.CENTER
+        creditPill.setTextColor(mutedColor)
+        creditPill.setPadding(dp(14), dp(6), dp(14), dp(6))
+        creditPill.background = rounded(cardColor, 99)
+        creditPill.setOnClickListener { checkCredit(force = true) }
+        val creditRow = LinearLayout(this)
+        creditRow.gravity = Gravity.CENTER
+        creditRow.addView(creditPill, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
+        root.addView(creditRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        showCredit()
         label(
             root,
             "Highlight text in any app (Opera, Discord, Messages...) and tap “Read audio”. " +
@@ -249,6 +289,7 @@ class MainActivity : Activity() {
         val actions = row(cur, 24)
         button(actions, "Save", 1f) {
             saveKey()
+            checkCredit(force = true)
             toast("Saved.")
         }
         button(actions, "Save & test", 1f, primary = true) {
@@ -284,10 +325,65 @@ class MainActivity : Activity() {
             BubbleService.start(this) // make sure it's running (e.g. after the phone restarts)
         }
         updateBubbleButton()
+        checkCredit(force = false)
         // show "What's new" once after each update
         if (prefs.seenChanges < Changelog.ENTRIES.size) {
             prefs.seenChanges = Changelog.ENTRIES.size
             handler.post { showWhatsNew() }
+        }
+    }
+
+    // ------------------------------------------------------------------ Fish credit
+    private fun showCredit() {
+        if (!::creditPill.isInitialized) return
+        val key = prefs.apiKey
+        val v = Credit.lastValue
+        val (text, color) = when {
+            key.isBlank() -> "Add your Fish API key below" to mutedColor
+            prefs.model.contains("free") -> "\uD83C\uDF81 Free model \u00b7 no credit used" to mutedColor
+            creditText.isNotEmpty() -> creditText to creditColor
+            v == null -> "Checking Fish credit..." to mutedColor
+            v < Credit.LOW -> "\u26A0 Fish credit low: ${Credit.format(v)} \u00b7 tap to refresh" to Color.parseColor("#FFB020")
+            else -> "Fish credit: ${Credit.format(v)}" to mutedColor
+        }
+        creditPill.text = text
+        creditPill.setTextColor(color)
+    }
+
+    /** Asks Fish for the balance (at most every 2 minutes unless you tap the pill). */
+    private fun checkCredit(force: Boolean) {
+        val key = prefs.apiKey
+        if (key.isBlank()) { showCredit(); return }
+        if (!force && System.currentTimeMillis() - Credit.lastChecked < 2 * 60 * 1000L) { showCredit(); return }
+        Credit.lastChecked = System.currentTimeMillis()
+        creditText = if (force) "Checking..." else ""
+        creditColor = mutedColor
+        showCredit()
+        Thread {
+            val msg = try { Credit.fetch(key); "" } catch (e: Exception) { "Fish credit: ${e.message}" }
+            handler.post {
+                creditText = msg
+                showCredit()
+            }
+        }.start()
+    }
+
+    // ------------------------------------------------------------------ big lotus
+    private fun setBreathing(on: Boolean) {
+        if (!::heroLogo.isInitialized) return
+        if (on && breathing == null) {
+            val sx = android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.06f)
+            val sy = android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.06f)
+            breathing = android.animation.ObjectAnimator.ofPropertyValuesHolder(heroLogo, sx, sy).apply {
+                duration = 1400
+                repeatCount = android.animation.ValueAnimator.INFINITE
+                repeatMode = android.animation.ValueAnimator.REVERSE
+                start()
+            }
+        } else if (!on && breathing != null) {
+            breathing?.cancel()
+            breathing = null
+            heroLogo.animate().scaleX(1f).scaleY(1f).setDuration(300).start()
         }
     }
 
@@ -481,6 +577,7 @@ class MainActivity : Activity() {
     // ------------------------------------------------------------------ status
     private fun refreshStatus() {
         val s = player.snapshot()
+        setBreathing(s.phase == Phase.PLAYING)
         val newest = History.list(this).firstOrNull()?.time ?: 0L
         if (newest != historyStamp) renderHistory()
         val time = if (s.streaming || s.duration <= 0.0) ReadService.fmt(s.current)
