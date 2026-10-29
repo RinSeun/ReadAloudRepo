@@ -10,6 +10,7 @@ object Credit {
 
     @Volatile var lastValue: Double? = null
     @Volatile var lastChecked = 0L
+    @Volatile var elevenLeft: Long? = null // ElevenLabs characters left this month
 
     /** Returns the balance, or throws with a short friendly message. Runs on a background thread. */
     fun fetch(apiKey: String): Double {

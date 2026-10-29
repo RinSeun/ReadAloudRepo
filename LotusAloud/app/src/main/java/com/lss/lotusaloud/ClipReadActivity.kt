@@ -26,8 +26,8 @@ class ClipReadActivity : Activity() {
         }
 
         when {
-            Prefs(this).apiKey.isBlank() -> {
-                Toast.makeText(this, "Add your Fish Audio API key first.", Toast.LENGTH_LONG).show()
+            !Prefs(this).hasKeyFor() -> {
+                Toast.makeText(this, Providers.missingKeyText(Prefs(this).mainVoice), Toast.LENGTH_LONG).show()
                 startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
             text.isBlank() -> Toast.makeText(this, "Copy some text first, then tap Lotus Read.", Toast.LENGTH_LONG).show()

@@ -67,6 +67,18 @@ class Prefs(context: Context) {
         get() = sp.getInt("bubbleY", -1)
         set(v) { sp.edit().putInt("bubbleY", v).apply() }
 
+    /** Double-tapping the bubble reads your latest screenshot. */
+    var shotsOn: Boolean
+        get() = sp.getBoolean("shotsOn", true)
+        set(v) { sp.edit().putBoolean("shotsOn", v).apply() }
+
+    var elevenKey: String
+        get() = sp.getString("elevenKey", "") ?: ""
+        set(v) { sp.edit().putString("elevenKey", v.trim()).apply() }
+
+    /** Is the key for this voice (default: your main voice) filled in? */
+    fun hasKeyFor(voiceId: String = mainVoice): Boolean = Providers.hasKey(voiceId, TtsConfig.from(this))
+
     /** How many "What's new" entries you've already seen (so the pop-up shows once per update). */
     var seenChanges: Int
         get() = sp.getInt("seenChanges", 0)

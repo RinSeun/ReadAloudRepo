@@ -9,6 +9,31 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "\u2728 New Voices & Settings look",
+            listOf(
+                "Voices: your main voice up top, coloured badges per service, tap \u2605 to make a voice main, hold one to remove it.",
+                "Connected services show a green dot once your key is in - tap to add or change a key.",
+                "Settings: big title, clean grouped rows, a big speed number with \u2212 / + buttons, and real on/off switches.",
+                "You can now turn the screenshot double-tap off if you don't want it.",
+            ),
+        ),
+        Entry(
+            "\uD83D\uDDC2 Tabs",
+            listOf(
+                "The app now has tabs at the bottom: Player, Voices and Settings - no more long scrolling page.",
+                "The floating bubble uses less battery when nothing is playing.",
+            ),
+        ),
+        Entry(
+            "\uD83C\uDF99 More voices: ElevenLabs & your phone",
+            listOf(
+                "Add voices from ElevenLabs (paste your ElevenLabs key, then pick from your voices).",
+                "Or use your phone's own voices - free, offline and instant. Handy when credit runs out.",
+                "Mix them freely: each voice remembers its service, and everything (follow along, parts, speed) works with all of them.",
+                "The top shows the right balance for your main voice: Fish credit or ElevenLabs characters left.",
+            ),
+        ),
+        Entry(
             "\uD83E\uDEB7 Big lotus & Fish credit",
             listOf(
                 "A big glowing lotus at the top - it gently breathes while reading. Tap it to follow along.",

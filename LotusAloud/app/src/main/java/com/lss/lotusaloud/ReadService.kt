@@ -185,8 +185,9 @@ class ReadService : Service() {
 
     private fun startRead(raw: String, voiceOverride: String?, record: Boolean) {
         val prefs = Prefs(this)
-        if (prefs.apiKey.isBlank()) {
-            player.showError("Add your Fish Audio API key in the Lotus Aloud app first.")
+        val voiceToUse = voiceOverride ?: prefs.mainVoice
+        if (!prefs.hasKeyFor(voiceToUse)) {
+            player.showError(Providers.missingKeyText(voiceToUse))
             return
         }
         // A webpage link? Fetch the article and read that instead.
@@ -233,9 +234,9 @@ class ReadService : Service() {
         ReadSession.pendingFraction = null
         lastDuration = -1.0
         player.setSpeed(prefs.speed)
-        player.speak(parts[i], prefs.apiKey, ReadSession.voice, prefs.model, prefs.quality)
+        player.speak(parts[i], ReadSession.voice, TtsConfig.from(prefs))
         if (i + 1 < parts.size) {
-            player.prefetch(parts[i + 1], prefs.apiKey, ReadSession.voice, prefs.model, prefs.quality)
+            player.prefetch(parts[i + 1], ReadSession.voice, TtsConfig.from(prefs))
         }
         handler.removeCallbacks(tick)
         handler.post(tick)

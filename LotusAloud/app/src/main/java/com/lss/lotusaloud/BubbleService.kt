@@ -68,7 +68,8 @@ class BubbleService : Service() {
                 else -> Color.TRANSPARENT
             }
             ring.setStroke(dp(3), color)
-            handler.postDelayed(this, 400)
+            // check often only while something is happening; otherwise barely at all (saves battery)
+            handler.postDelayed(this, if (color == Color.TRANSPARENT) 2000 else 400)
         }
     }
 
@@ -233,6 +234,10 @@ class BubbleService : Service() {
     }
 
     private fun onTap() {
+        if (!Prefs(this).shotsOn) { // double-tap turned off: react straight away
+            if (player.isBusy()) player.stop() else readClipboard()
+            return
+        }
         if (player.isBusy()) {
             handler.removeCallbacks(singleTap)
             waitingForSecondTap = false
@@ -271,7 +276,7 @@ class BubbleService : Service() {
                 when {
                     uri == null -> Toast.makeText(this, "No screenshots found yet.", Toast.LENGTH_SHORT).show()
                     path == null -> Toast.makeText(this, "Couldn't open your latest screenshot.", Toast.LENGTH_SHORT).show()
-                    Prefs(this).apiKey.isBlank() -> Toast.makeText(this, "Add your Fish Audio API key first.", Toast.LENGTH_LONG).show()
+                    !Prefs(this).hasKeyFor() -> Toast.makeText(this, Providers.missingKeyText(Prefs(this).mainVoice), Toast.LENGTH_LONG).show()
                     else -> {
                         Toast.makeText(this, "Reading your latest screenshot...", Toast.LENGTH_SHORT).show()
                         ReadService.readImages(this, listOf(path))

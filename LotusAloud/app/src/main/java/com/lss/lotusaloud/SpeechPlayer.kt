@@ -13,8 +13,8 @@ import java.net.URL
 import java.security.MessageDigest
 
 /**
- * Downloads speech from Fish Audio as raw PCM (16-bit mono, 44.1 kHz) and plays it
- * while it streams in. Supports pause, skip back/forward, live speed changes, and keeps
+ * Gets speech from the chosen voice service (Fish Audio, ElevenLabs or the phone) as raw
+ * 16-bit mono PCM and plays it while it streams in. Supports pause, skip back/forward, live speed changes, and keeps
  * recent audio on the phone so replays are instant and free.
  */
 class SpeechPlayer {
@@ -33,9 +33,8 @@ class SpeechPlayer {
 
     companion object {
         const val API_URL = "https://api.fish.audio/v1/tts"
-        const val RATE = 44100
-        const val BYTES_PER_SEC = RATE * 2
-        private const val PIECE = 4410 // 25 ms of audio per write
+        const val FISH_RATE = 44100
+        private const val PIECE_MS = 25 // audio handed to the speaker per write
         private const val DISK_CACHE_MAX = 15
 
         /** One player for the whole app (service, bubble, tile, screens). */
@@ -54,7 +53,7 @@ class SpeechPlayer {
             JSONObject().apply {
                 put("text", text)
                 put("format", "pcm")
-                put("sample_rate", RATE)
+                put("sample_rate", FISH_RATE)
                 when (quality) {
                     "fast" -> { put("latency", "low"); put("chunk_length", 150) }
                     "quality" -> put("latency", "normal")
@@ -83,6 +82,9 @@ class SpeechPlayer {
     private var speed = 1f
     private var track: AudioTrack? = null
     private var cacheDir: File? = null
+    private var appCtx: Context? = null
+    private var rate = FISH_RATE     // samples per second of the current clip (depends on the voice service)
+    private fun bps() = rate * 2     // bytes per second
     private val inFlight = java.util.Collections.synchronizedSet(HashSet<String>()) // downloads running now
 
     /** Called (on a background thread) when a clip finishes playing to the end. */
@@ -90,6 +92,7 @@ class SpeechPlayer {
 
     fun init(context: Context) {
         if (cacheDir == null) cacheDir = File(context.cacheDir, "reads").apply { mkdirs() }
+        if (appCtx == null) appCtx = context.applicationContext
     }
 
     private fun setPhase(p: Phase) {
@@ -103,17 +106,17 @@ class SpeechPlayer {
         val t = track
         if (t != null) {
             val head = try { t.playbackHeadPosition.toLong() and 0xffffffffL } catch (e: Exception) { 0L }
-            return minOf(baseSec + head.toDouble() / RATE, pos.toDouble() / BYTES_PER_SEC)
+            return minOf(baseSec + head.toDouble() / rate, pos.toDouble() / bps())
         }
-        return if (phase == Phase.ENDED) len.toDouble() / BYTES_PER_SEC else baseSec
+        return if (phase == Phase.ENDED) len.toDouble() / bps() else baseSec
     }
 
     fun snapshot(): State = synchronized(lock) {
         State(
             phase = phase,
             current = currentLocked(),
-            duration = if (done) len.toDouble() / BYTES_PER_SEC else 0.0,
-            available = len.toDouble() / BYTES_PER_SEC,
+            duration = if (done) len.toDouble() / bps() else 0.0,
+            available = len.toDouble() / bps(),
             streaming = !done,
             message = message,
             since = since,
@@ -123,9 +126,8 @@ class SpeechPlayer {
 
     fun isBusy(): Boolean = snapshot().phase.let { it == Phase.LOADING || it == Phase.PLAYING || it == Phase.PAUSED }
 
-    fun speak(text: String, apiKey: String, voiceId: String, model: String, quality: String) {
-        val body = buildBody(text, voiceId, quality)
-        val key = sha1(model + "|" + body.toString())
+    fun speak(text: String, voiceId: String, cfg: TtsConfig) {
+        val key = sha1(Providers.cacheKey(text, voiceId, cfg))
         val g = synchronized(lock) {
             gen++
             haltTrackLocked()
@@ -141,34 +143,25 @@ class SpeechPlayer {
             since = System.currentTimeMillis()
             gen
         }
-        Thread({ download(g, key, apiKey.trim(), model, body) }, "lotus-download").start()
+        Thread({ download(g, key, text, voiceId, cfg) }, "lotus-download").start()
         Thread({ play(g) }, "lotus-play").start()
     }
 
     /** Generates audio in the background and keeps it on the phone, so playing it later starts instantly. */
-    fun prefetch(text: String, apiKey: String, voiceId: String, model: String, quality: String) {
-        val body = buildBody(text, voiceId, quality)
-        val key = sha1(model + "|" + body.toString())
-        val f = cacheFile(key) ?: return
-        if (f.exists() || !inFlight.add(key)) return
+    fun prefetch(text: String, voiceId: String, cfg: TtsConfig) {
+        val ctx = appCtx ?: return
+        val key = sha1(Providers.cacheKey(text, voiceId, cfg))
+        if (findCached(key) != null || !inFlight.add(key)) return
         Thread({
             try {
-                val c = URL(API_URL).openConnection() as HttpURLConnection
-                try {
-                    c.requestMethod = "POST"
-                    c.doOutput = true
-                    c.connectTimeout = 15000
-                    c.readTimeout = 60000
-                    c.setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
-                    c.setRequestProperty("Content-Type", "application/json")
-                    c.setRequestProperty("model", model)
-                    c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                    if (c.responseCode == 200) {
-                        val data = c.inputStream.use { it.readBytes() }
-                        if (data.size > 1) saveToCache(key, data)
+                when (val src = Providers.open(ctx, text, voiceId, cfg)) {
+                    is AudioSource.Bytes -> if (src.data.size > 1) saveToCache(key, src.rate, src.data)
+                    is AudioSource.Stream -> try {
+                        val data = src.input.use { it.readBytes() }
+                        if (data.size > 1) saveToCache(key, src.rate, data)
+                    } finally {
+                        src.conn.disconnect()
                     }
-                } finally {
-                    c.disconnect()
                 }
             } catch (e: Exception) {
                 // it'll simply be generated when it's needed
@@ -228,10 +221,10 @@ class SpeechPlayer {
         val canSeek = phase == Phase.PLAYING || phase == Phase.PAUSED ||
             (phase == Phase.ENDED && done && len > 0)
         if (!canSeek) return
-        val maxSec = len.toDouble() / BYTES_PER_SEC
+        val maxSec = len.toDouble() / bps()
         val target = seconds.coerceIn(0.0, maxOf(0.0, maxSec - 0.05))
-        pos = ((target * BYTES_PER_SEC).toInt()) and 1.inv()
-        baseSec = pos.toDouble() / BYTES_PER_SEC
+        pos = ((target * bps()).toInt()) and 1.inv()
+        baseSec = pos.toDouble() / bps()
         fedSinceBase = 0
         seekGen++
         val t = track
@@ -288,14 +281,20 @@ class SpeechPlayer {
     }
 
     // ------------------------------------------------------------------ cache on the phone
-    private fun cacheFile(key: String): File? = cacheDir?.let { File(it, "$key.pcm") }
+    /** A saved clip and its sample rate (file name: key.rate.pcm). */
+    private fun findCached(key: String): Pair<File, Int>? {
+        val dir = cacheDir ?: return null
+        val f = dir.listFiles { f -> f.name.startsWith("$key.") && f.name.endsWith(".pcm") }?.firstOrNull() ?: return null
+        val r = f.name.removePrefix("$key.").removeSuffix(".pcm").toIntOrNull() ?: return null
+        return if (f.length() > 1) f to r else null
+    }
 
-    private fun saveToCache(key: String, data: ByteArray) {
+    private fun saveToCache(key: String, sampleRate: Int, data: ByteArray) {
         val dir = cacheDir ?: return
         try {
             val tmp = File(dir, "$key.tmp")
             tmp.writeBytes(data)
-            tmp.renameTo(File(dir, "$key.pcm"))
+            tmp.renameTo(File(dir, "$key.$sampleRate.pcm"))
             val files = dir.listFiles { f -> f.name.endsWith(".pcm") }?.sortedByDescending { it.lastModified() } ?: return
             files.drop(DISK_CACHE_MAX).forEach { it.delete() }
         } catch (e: Exception) {
@@ -303,7 +302,7 @@ class SpeechPlayer {
     }
 
     // ------------------------------------------------------------------ download
-    private fun download(g: Int, key: String, apiKey: String, model: String, body: JSONObject) {
+    private fun download(g: Int, key: String, text: String, voiceId: String, cfg: TtsConfig) {
         // If this exact audio is already being prepared in the background, wait for it
         val waitUntil = System.currentTimeMillis() + 90_000
         while (inFlight.contains(key) && System.currentTimeMillis() < waitUntil) {
@@ -311,85 +310,83 @@ class SpeechPlayer {
             Thread.sleep(50)
         }
         // Replay from the phone if we've generated this exact audio before
-        val cached = cacheFile(key)
-        if (cached != null && cached.exists() && cached.length() > 1) {
+        val cached = findCached(key)
+        if (cached != null) {
             try {
-                val data = cached.readBytes()
-                cached.setLastModified(System.currentTimeMillis())
+                val data = cached.first.readBytes()
+                cached.first.setLastModified(System.currentTimeMillis())
                 synchronized(lock) {
                     if (g != gen) return
+                    rate = cached.second
                     buf = data
                     len = data.size
                     done = true
                 }
                 return
             } catch (e: Exception) {
-                // fall through and download again
+                // fall through and generate it again
             }
         }
 
-        var conn: HttpURLConnection? = null
+        val ctx = appCtx ?: return fail(g, "Lotus Aloud wasn't ready - try again.")
+        var source: AudioSource? = null
         inFlight.add(key)
         try {
-            val c = URL(API_URL).openConnection() as HttpURLConnection
-            conn = c
-            c.requestMethod = "POST"
-            c.doOutput = true
-            c.connectTimeout = 15000
-            c.readTimeout = 60000
-            c.setRequestProperty("Authorization", "Bearer $apiKey")
-            c.setRequestProperty("Content-Type", "application/json")
-            c.setRequestProperty("model", model)
-            c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-
-            val code = c.responseCode
-            if (code != 200) {
-                val detail = try {
-                    c.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-                } catch (e: Exception) {
-                    ""
-                }
-                fail(g, errorText(code, detail, model))
-                return
-            }
-
-            val chunk = ByteArray(16384)
-            c.inputStream.use { input ->
-                while (true) {
-                    val n = input.read(chunk)
-                    if (n < 0) break
-                    if (n > 0) {
-                        val stillMine = synchronized(lock) {
-                            if (g == gen) { append(chunk, n); true } else false
-                        }
-                        if (!stillMine) return
+            val src = Providers.open(ctx, text, voiceId, cfg)
+            source = src
+            when (src) {
+                is AudioSource.Bytes -> {
+                    synchronized(lock) {
+                        if (g != gen) return
+                        rate = src.rate
+                        buf = src.data
+                        len = src.data.size
+                        done = true
                     }
+                    if (src.data.size > 1) saveToCache(key, src.rate, src.data)
+                }
+                is AudioSource.Stream -> {
+                    synchronized(lock) { if (g == gen) rate = src.rate }
+                    val chunk = ByteArray(16384)
+                    src.input.use { input ->
+                        while (true) {
+                            val n = input.read(chunk)
+                            if (n < 0) break
+                            if (n > 0) {
+                                val stillMine = synchronized(lock) {
+                                    if (g == gen) { append(chunk, n); true } else false
+                                }
+                                if (!stillMine) return
+                            }
+                        }
+                    }
+                    val copy = synchronized(lock) {
+                        if (g != gen) return
+                        done = true
+                        if (len < 2) {
+                            message = "The voice service sent no audio."
+                            setPhase(Phase.ERROR)
+                            return
+                        }
+                        buf.copyOf(len)
+                    }
+                    saveToCache(key, src.rate, copy)
                 }
             }
-
-            val copy = synchronized(lock) {
-                if (g != gen) return
-                done = true
-                if (len < 2) {
-                    message = "Fish returned no audio."
-                    setPhase(Phase.ERROR)
-                    return
-                }
-                buf.copyOf(len)
-            }
-            saveToCache(key, copy)
+        } catch (e: ProviderError) {
+            fail(g, e.message ?: "The voice service had a problem.")
         } catch (e: IOException) {
             val haveSome = synchronized(lock) { g == gen && len > 1 }
             if (haveSome) {
                 synchronized(lock) { if (g == gen) done = true } // connection dropped: play what we got
             } else {
-                fail(g, "Couldn't reach Fish Audio. Check your internet connection.")
+                fail(g, "Couldn't reach the voice service. Check your internet connection.")
             }
         } catch (e: Exception) {
             fail(g, "Something went wrong: ${e.message}")
         } finally {
             inFlight.remove(key)
-            conn?.disconnect()
+            (source as? AudioSource.Stream)?.conn?.disconnect()
         }
     }
 
@@ -401,7 +398,7 @@ class SpeechPlayer {
                 val avail = len - pos
                 when {
                     g != gen || phase == Phase.ERROR -> -1
-                    avail >= BYTES_PER_SEC / 5 || (done && avail >= 2) -> 1
+                    avail >= bps() / 5 || (done && avail >= 2) -> 1
                     done -> -1
                     else -> 0
                 }
@@ -411,7 +408,9 @@ class SpeechPlayer {
             Thread.sleep(20)
         }
 
-        val minBuf = AudioTrack.getMinBufferSize(RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val r = synchronized(lock) { rate } // this clip's sample rate (known once audio has arrived)
+        val pieceBytes = (r * 2 * PIECE_MS / 1000) and 1.inv()
+        val minBuf = AudioTrack.getMinBufferSize(r, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val t = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -421,12 +420,12 @@ class SpeechPlayer {
             )
             .setAudioFormat(
                 AudioFormat.Builder()
-                    .setSampleRate(RATE)
+                    .setSampleRate(r)
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build()
             )
-            .setBufferSizeInBytes(maxOf(minBuf * 2, BYTES_PER_SEC / 4))
+            .setBufferSizeInBytes(maxOf(minBuf * 2, r / 2))
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
 
@@ -460,7 +459,7 @@ class SpeechPlayer {
                             if (avail <= 0) {
                                 if (done) finished = true else piece = ByteArray(0) // still generating
                             } else {
-                                val n = minOf(PIECE, avail)
+                                val n = minOf(pieceBytes, avail)
                                 piece = buf.copyOfRange(pos, pos + n)
                                 pos += n
                                 setPhase(Phase.PLAYING)
