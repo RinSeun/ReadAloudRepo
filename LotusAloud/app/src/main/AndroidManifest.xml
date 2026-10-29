@@ -8,6 +8,11 @@
     <!-- floating lotus bubble -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- double-tap the bubble to read your latest screenshot -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <application
         android:allowBackup="false"
@@ -54,6 +59,12 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
+
+        <!-- Follow-along screen (tap the notification) -->
+        <activity
+            android:name=".ReaderActivity"
+            android:exported="false"
+            android:launchMode="singleTop" />
 
         <!-- Opened by the Quick Settings tile to read the clipboard -->
         <activity

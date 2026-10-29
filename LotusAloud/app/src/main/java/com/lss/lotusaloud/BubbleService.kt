@@ -24,6 +24,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.Toast
 import kotlin.math.abs
 
 /**
@@ -222,12 +223,61 @@ class BubbleService : Service() {
         }
     }
 
+    // ------------------------------------------------------------------ taps
+    // One tap = read what you copied. Two quick taps = read your latest screenshot.
+    // Any tap while reading = stop.
+    private var waitingForSecondTap = false
+    private val singleTap = Runnable {
+        waitingForSecondTap = false
+        readClipboard()
+    }
+
     private fun onTap() {
         if (player.isBusy()) {
+            handler.removeCallbacks(singleTap)
+            waitingForSecondTap = false
             player.stop()
             return
         }
-        // Reads what you copied (a tiny invisible screen grabs the clipboard, then closes)
+        if (waitingForSecondTap) {
+            handler.removeCallbacks(singleTap)
+            waitingForSecondTap = false
+            readLatestScreenshot()
+        } else {
+            waitingForSecondTap = true
+            handler.postDelayed(singleTap, 320)
+        }
+    }
+
+    private fun readClipboard() {
+        // a tiny invisible screen grabs the clipboard, then closes
         startActivity(Intent(this, ClipReadActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    private fun readLatestScreenshot() {
+        if (!Screenshots.canRead(this)) {
+            Toast.makeText(this, "Allow photo access in Lotus Aloud to read screenshots.", Toast.LENGTH_LONG).show()
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    .putExtra(MainActivity.EXTRA_ASK_SCREENSHOTS, true)
+            )
+            return
+        }
+        Thread {
+            val uri = Screenshots.latest(this)
+            val path = uri?.let { ImageText.copyToCache(this, it) }
+            handler.post {
+                when {
+                    uri == null -> Toast.makeText(this, "No screenshots found yet.", Toast.LENGTH_SHORT).show()
+                    path == null -> Toast.makeText(this, "Couldn't open your latest screenshot.", Toast.LENGTH_SHORT).show()
+                    Prefs(this).apiKey.isBlank() -> Toast.makeText(this, "Add your Fish Audio API key first.", Toast.LENGTH_LONG).show()
+                    else -> {
+                        Toast.makeText(this, "Reading your latest screenshot...", Toast.LENGTH_SHORT).show()
+                        ReadService.readImages(this, listOf(path))
+                    }
+                }
+            }
+        }.start()
     }
 }

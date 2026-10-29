@@ -83,6 +83,10 @@ class SpeechPlayer {
     private var speed = 1f
     private var track: AudioTrack? = null
     private var cacheDir: File? = null
+    private val inFlight = java.util.Collections.synchronizedSet(HashSet<String>()) // downloads running now
+
+    /** Called (on a background thread) when a clip finishes playing to the end. */
+    @Volatile var onEnded: (() -> Unit)? = null
 
     fun init(context: Context) {
         if (cacheDir == null) cacheDir = File(context.cacheDir, "reads").apply { mkdirs() }
@@ -139,6 +143,39 @@ class SpeechPlayer {
         }
         Thread({ download(g, key, apiKey.trim(), model, body) }, "lotus-download").start()
         Thread({ play(g) }, "lotus-play").start()
+    }
+
+    /** Generates audio in the background and keeps it on the phone, so playing it later starts instantly. */
+    fun prefetch(text: String, apiKey: String, voiceId: String, model: String, quality: String) {
+        val body = buildBody(text, voiceId, quality)
+        val key = sha1(model + "|" + body.toString())
+        val f = cacheFile(key) ?: return
+        if (f.exists() || !inFlight.add(key)) return
+        Thread({
+            try {
+                val c = URL(API_URL).openConnection() as HttpURLConnection
+                try {
+                    c.requestMethod = "POST"
+                    c.doOutput = true
+                    c.connectTimeout = 15000
+                    c.readTimeout = 60000
+                    c.setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+                    c.setRequestProperty("Content-Type", "application/json")
+                    c.setRequestProperty("model", model)
+                    c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    if (c.responseCode == 200) {
+                        val data = c.inputStream.use { it.readBytes() }
+                        if (data.size > 1) saveToCache(key, data)
+                    }
+                } finally {
+                    c.disconnect()
+                }
+            } catch (e: Exception) {
+                // it'll simply be generated when it's needed
+            } finally {
+                inFlight.remove(key)
+            }
+        }, "lotus-prefetch").start()
     }
 
     fun stop() {
@@ -267,6 +304,12 @@ class SpeechPlayer {
 
     // ------------------------------------------------------------------ download
     private fun download(g: Int, key: String, apiKey: String, model: String, body: JSONObject) {
+        // If this exact audio is already being prepared in the background, wait for it
+        val waitUntil = System.currentTimeMillis() + 90_000
+        while (inFlight.contains(key) && System.currentTimeMillis() < waitUntil) {
+            if (synchronized(lock) { g != gen }) return
+            Thread.sleep(50)
+        }
         // Replay from the phone if we've generated this exact audio before
         val cached = cacheFile(key)
         if (cached != null && cached.exists() && cached.length() > 1) {
@@ -286,6 +329,7 @@ class SpeechPlayer {
         }
 
         var conn: HttpURLConnection? = null
+        inFlight.add(key)
         try {
             val c = URL(API_URL).openConnection() as HttpURLConnection
             conn = c
@@ -344,6 +388,7 @@ class SpeechPlayer {
         } catch (e: Exception) {
             fail(g, "Something went wrong: ${e.message}")
         } finally {
+            inFlight.remove(key)
             conn?.disconnect()
         }
     }
@@ -456,7 +501,10 @@ class SpeechPlayer {
                     Thread.sleep(30)
                 }
             }
-            synchronized(lock) { if (g == gen) setPhase(Phase.ENDED) }
+            val endedNow = synchronized(lock) {
+                if (g == gen) { setPhase(Phase.ENDED); true } else false
+            }
+            if (endedNow) try { onEnded?.invoke() } catch (e: Exception) {}
         } catch (e: Exception) {
             synchronized(lock) {
                 if (g == gen) {

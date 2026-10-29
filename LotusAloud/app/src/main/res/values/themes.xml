@@ -1,8 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.Light.DarkActionBar">
+    <!-- Lotus Aloud: dark lotus theme (same in light and dark mode) -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:colorPrimary">#FA1E4E</item>
-        <item name="android:colorPrimaryDark">#C8153C</item>
+        <item name="android:colorPrimaryDark">#120E14</item>
         <item name="android:colorAccent">#FA1E4E</item>
+        <item name="android:colorControlActivated">#FA1E4E</item>
+        <item name="android:windowBackground">@color/app_background</item>
+        <item name="android:statusBarColor">@color/app_background</item>
+        <item name="android:navigationBarColor">@color/app_background</item>
+        <item name="android:textColorPrimary">#F3EDF2</item>
+        <item name="android:textColorSecondary">#A79BA6</item>
+        <item name="android:alertDialogTheme">@style/LotusDialog</item>
+    </style>
+
+    <style name="LotusDialog" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#FF6B8A</item>
+        <item name="android:colorBackground">#1E1820</item>
+        <item name="android:textColorPrimary">#F3EDF2</item>
     </style>
 </resources>

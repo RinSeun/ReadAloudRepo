@@ -9,6 +9,23 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "\uD83D\uDCD6 Follow along, links & long reads",
+            listOf(
+                "Follow-along screen: see the text as it's read, with the current sentence highlighted. Tap any sentence to jump there.",
+                "Open it by tapping the notification, or \u201cFollow along\u201d in the app.",
+                "Share or paste a webpage link and it reads the article - no menus or ads.",
+                "Long text is split into parts: it starts faster, there are no gaps, and you can skip part by part (also with earbud double-tap).",
+            ),
+        ),
+        Entry(
+            "\uD83C\uDFA8 New look + screenshot double-tap",
+            listOf(
+                "A new dark lotus design with your logo at the top.",
+                "Double-tap the lotus bubble to read your latest screenshot - no Share menu needed.",
+                "Tap \u201cAllow double-tap screenshot reading\u201d once to turn it on.",
+            ),
+        ),
+        Entry(
             "\uD83E\uDEB7 Now called Lotus Aloud",
             listOf(
                 "New name: Lotus Aloud. The Quick Settings tile is now \u201cLotus Read\u201d.",

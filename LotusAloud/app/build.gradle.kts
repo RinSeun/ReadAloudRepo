@@ -52,4 +52,6 @@ android {
 dependencies {
     // Finds text in screenshots and photos, on the phone (offline, free)
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // Pulls the article text out of webpages (for reading links)
+    implementation("org.jsoup:jsoup:1.17.2")
 }

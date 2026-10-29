@@ -39,7 +39,17 @@ import com.lss.lotusaloud.SpeechPlayer.Phase
 
 /** Settings + status screen. */
 class MainActivity : Activity() {
+    companion object {
+        const val EXTRA_ASK_SCREENSHOTS = "askScreenshots"
+        private const val SCREENSHOT_PERMISSION_REQUEST = 7
+    }
+
     private val accent = Color.parseColor("#FA1E4E")
+    private val bgColor = Color.parseColor("#120E14")
+    private val cardColor = Color.parseColor("#1E1820")
+    private val fieldColor = Color.parseColor("#15101A")
+    private val textColor = Color.parseColor("#F3EDF2")
+    private val mutedColor = Color.parseColor("#A79BA6")
     private val player get() = SpeechPlayer.shared
     private val handler = Handler(Looper.getMainLooper())
 
@@ -51,6 +61,7 @@ class MainActivity : Activity() {
     private lateinit var apiKeyEdit: EditText
     private lateinit var historyBox: LinearLayout
     private lateinit var bubbleBtn: Button
+    private lateinit var shotsBtn: Button
     private var historyStamp = 0L
     private var waitingForOverlay = false
 
@@ -67,18 +78,25 @@ class MainActivity : Activity() {
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
-        root.setPadding(dp(20), dp(20), dp(20), dp(40))
+        root.setPadding(dp(16), dp(28), dp(16), dp(40))
         val scroll = ScrollView(this)
+        scroll.setBackgroundColor(bgColor)
         scroll.addView(root)
         setContentView(scroll)
+        var cur: LinearLayout
 
-        // ---- header
-        label(root, "Lotus Aloud", 28f, bold = true)
-        label(root, "MADE FOR LSS ONLY", 12f, bold = true, color = accent)
-        val newsBtn = button(row(root), "\u2728 What's new", 0f) { showWhatsNew() }
-        newsBtn.setTextColor(Color.WHITE)
-        newsBtn.background = GradientDrawable().apply { cornerRadius = dp(8).toFloat(); setColor(accent) }
-        newsBtn.setPadding(dp(14), 0, dp(14), 0)
+        // ---- header: logo + name
+        val header = row(root, 0)
+        val logo = android.widget.ImageView(this)
+        logo.setImageResource(resources.getIdentifier("ic_bubble", "drawable", packageName))
+        header.addView(logo, LinearLayout.LayoutParams(dp(64), dp(64)))
+        val titles = LinearLayout(this)
+        titles.orientation = LinearLayout.VERTICAL
+        titles.setPadding(dp(14), 0, 0, 0)
+        header.addView(titles, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        label(titles, "Lotus Aloud", 26f, bold = true)
+        label(titles, "MADE FOR LSS ONLY", 11f, bold = true, color = accent)
+        button(header, "\u2728 New", 0f, primary = true) { showWhatsNew() }
         label(
             root,
             "Highlight text in any app (Opera, Discord, Messages...) and tap “Read audio”. " +
@@ -88,73 +106,77 @@ class MainActivity : Activity() {
         )
 
         // ---- status / controls
-        heading(root, "Now playing")
-        statusText = label(root, "Idle", 15f)
-        val controls = row(root)
+        cur = card(root, "Now playing")
+        statusText = label(cur, "Idle", 15f)
+        val controls = row(cur)
         button(controls, "⏪ 10s", 1f) { player.skip(-10.0) }
         pauseBtn = button(controls, "Pause", 1f) { player.togglePause() }
         button(controls, "10s ⏩", 1f) { player.skip(10.0) }
         stopBtn = button(controls, "Stop", 1f) { player.stop() }
+        button(row(cur), "\uD83D\uDCD6 Follow along", 1f) { startActivity(Intent(this, ReaderActivity::class.java)) }
 
         // ---- paste & read
-        heading(root, "Read text")
-        val paste = edit(root, "Paste or type text here")
+        cur = card(root, "Read text")
+        val paste = edit(cur, "Paste or type text here")
         paste.setSingleLine(false)
         paste.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         paste.minLines = 3
         paste.gravity = Gravity.TOP or Gravity.START
-        button(row(root), "Read this", 1f) {
+        button(row(cur), "Read this", 1f, primary = true) {
             if (requireKey()) ReadService.read(this, paste.text.toString())
         }
-        button(row(root), "\uD83D\uDCF7 Read a screenshot or photo", 1f) { pickImage() }
+        button(row(cur), "\uD83D\uDCF7 Read a screenshot or photo", 1f) { pickImage() }
         label(
             root,
-            "Or take a screenshot \u2192 tap Share in the toolbar \u2192 Lotus Aloud. Works with photos and several screenshots at once.",
+            "Paste a webpage link to hear the article. Or take a screenshot \u2192 Share \u2192 Lotus Aloud.",
             13f,
         )
 
         // ---- recent reads
-        heading(root, "Recent reads")
-        label(root, "Tap ▶ to hear one again. Replays are instant and free.", 13f)
+        cur = card(root, "Recent reads")
+        label(cur, "Tap ▶ to hear one again. Replays are instant and free.", 13f)
         historyBox = LinearLayout(this)
         historyBox.orientation = LinearLayout.VERTICAL
-        root.addView(historyBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        cur.addView(historyBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         renderHistory()
 
         // ---- floating bubble + Quick Settings tile (for apps like Opera & Messenger that hide "Read audio")
-        heading(root, "Opera, Messenger & other apps")
+        cur = card(root, "Opera, Messenger & other apps")
         label(
             root,
             "Some apps hide “Read audio”. In those, copy the text (Messenger: long-press the message → Copy), " +
-                "then tap the floating lotus bubble. Tap the bubble again to stop. Drag it to move it; long-press it to open this app.",
+                "then tap the floating lotus bubble. Double-tap it to read your latest screenshot. Tap it while reading to stop. " +
+                "Drag it to move it; long-press it to open this app.",
             14f,
         )
-        bubbleBtn = button(row(root), "", 1f) { toggleBubble() }
+        bubbleBtn = button(row(cur), "", 1f, primary = true) { toggleBubble() }
         updateBubbleButton()
-        label(root, "Prefer swiping down? Use the “Lotus Read” Quick Settings tile the same way.", 13f, top = 8)
+        shotsBtn = button(row(cur), "Allow double-tap screenshot reading", 1f) { askScreenshotAccess() }
+        shotsBtn.visibility = if (Screenshots.canRead(this)) View.GONE else View.VISIBLE
+        label(cur, "Prefer swiping down? Use the “Lotus Read” Quick Settings tile the same way.", 13f, top = 8)
         if (Build.VERSION.SDK_INT >= 33) {
-            button(row(root), "Add “Lotus Read” tile to Quick Settings", 1f) { requestTile() }
+            button(row(cur), "Add “Lotus Read” tile to Quick Settings", 1f) { requestTile() }
         } else {
-            label(root, "To add it: swipe down twice, tap ✎ (edit), and drag “Lotus Read” into your tiles.", 13f)
+            label(cur, "To add it: swipe down twice, tap ✎ (edit), and drag “Lotus Read” into your tiles.", 13f)
         }
 
         // ---- API key
-        heading(root, "Fish Audio API key")
-        apiKeyEdit = edit(root, "Paste your key", prefs.apiKey)
+        cur = card(root, "Fish Audio API key")
+        apiKeyEdit = edit(cur, "Paste your key", prefs.apiKey)
         apiKeyEdit.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-        val link = label(root, "Get a key at fish.audio/app/api-keys", 14f, color = Color.parseColor("#1F6FEB"))
+        val link = label(cur, "Get a key at fish.audio/app/api-keys", 14f, color = Color.parseColor("#1F6FEB"))
         link.setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://fish.audio/app/api-keys"))) }
 
         // ---- voices
-        heading(root, "Voices")
-        label(root, "“Read audio” uses your main voice. Paste a fish.audio voice link to add more.", 13f)
+        cur = card(root, "Voices")
+        label(cur, "“Read audio” uses your main voice. Paste a fish.audio voice link to add more.", 13f)
         voicesBox = LinearLayout(this)
         voicesBox.orientation = LinearLayout.VERTICAL
-        root.addView(voicesBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        cur.addView(voicesBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         renderVoices()
-        val nameEdit = edit(root, "Name (e.g. Narrator)")
-        val linkEdit = edit(root, "Voice link or ID")
-        button(row(root), "+ Add voice", 1f) {
+        val nameEdit = edit(cur, "Name (e.g. Narrator)")
+        val linkEdit = edit(cur, "Voice link or ID")
+        button(row(cur), "+ Add voice", 1f) {
             val id = Prefs.extractVoiceId(linkEdit.text.toString())
             when {
                 !Prefs.isVoiceId(id) -> toast("That doesn't look like a Fish voice link.")
@@ -174,7 +196,7 @@ class MainActivity : Activity() {
         }
 
         // ---- model
-        heading(root, "Model")
+        cur = card(root, "Model")
         val models = Prefs.MODELS.toMutableList()
         if (prefs.model !in models) models.add(prefs.model)
         val spinner = Spinner(this)
@@ -186,26 +208,27 @@ class MainActivity : Activity() {
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
-        root.addView(spinner, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        label(root, "Getting “No API credit”? Pick s2.1-pro-free.", 13f)
+        cur.addView(spinner, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        label(cur, "Getting “No API credit”? Pick s2.1-pro-free.", 13f)
 
         // ---- quality
-        heading(root, "Start speed vs. quality")
+        cur = card(root, "Start speed vs. quality")
         val group = RadioGroup(this)
         val options = listOf("fast" to "Fastest start", "balanced" to "Balanced (recommended)", "quality" to "Best quality")
         options.forEachIndexed { i, (key, text) ->
             val rb = RadioButton(this)
             rb.id = 1000 + i
             rb.text = text
+            rb.setTextColor(textColor)
             group.addView(rb)
             if (prefs.quality == key) rb.isChecked = true
         }
         group.setOnCheckedChangeListener { _, checkedId -> prefs.quality = options[checkedId - 1000].first }
-        root.addView(group)
+        cur.addView(group)
 
         // ---- speed
-        heading(root, "Speed (changes instantly, even while reading)")
-        val speedLabel = label(root, "", 14f)
+        cur = card(root, "Speed (changes instantly, even while reading)")
+        val speedLabel = label(cur, "", 14f)
         val seek = SeekBar(this)
         seek.max = 15 // 0.5x .. 2.0x in 0.1 steps
         seek.progress = ((prefs.speed - 0.5f) * 10).toInt().coerceIn(0, 15)
@@ -220,15 +243,15 @@ class MainActivity : Activity() {
             override fun onStartTrackingTouch(sb: SeekBar?) {}
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
-        root.addView(seek, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        cur.addView(seek, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         // ---- save / test
-        val actions = row(root, 24)
+        val actions = row(cur, 24)
         button(actions, "Save", 1f) {
             saveKey()
             toast("Saved.")
         }
-        button(actions, "Save & test", 1f) {
+        button(actions, "Save & test", 1f, primary = true) {
             saveKey()
             if (requireKey()) ReadService.read(this, "Hello! Lotus Aloud is working.", record = false)
         }
@@ -242,6 +265,11 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (::shotsBtn.isInitialized) shotsBtn.visibility = if (Screenshots.canRead(this)) View.GONE else View.VISIBLE
+        if (intent?.getBooleanExtra(EXTRA_ASK_SCREENSHOTS, false) == true) {
+            intent.removeExtra(EXTRA_ASK_SCREENSHOTS)
+            askScreenshotAccess()
+        }
         handler.post(poll)
         renderHistory()
         if (waitingForOverlay) {
@@ -317,6 +345,31 @@ class MainActivity : Activity() {
             toast("Finding the text...")
             ReadService.readImages(this, listOf(path))
         }
+    }
+
+    // ------------------------------------------------------------------ screenshot access (bubble double-tap)
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
+    private fun askScreenshotAccess() {
+        if (Screenshots.canRead(this)) {
+            toast("Screenshot reading is already on.")
+            return
+        }
+        requestPermissions(arrayOf(Screenshots.permission()), SCREENSHOT_PERMISSION_REQUEST)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != SCREENSHOT_PERMISSION_REQUEST) return
+        if (Screenshots.canRead(this)) {
+            toast("Done! Double-tap the lotus bubble to read your latest screenshot.")
+        } else {
+            toast("Choose \u201cAllow all\u201d for photos so new screenshots can be read.")
+        }
+        if (::shotsBtn.isInitialized) shotsBtn.visibility = if (Screenshots.canRead(this)) View.GONE else View.VISIBLE
     }
 
     // ------------------------------------------------------------------ bubble
@@ -410,10 +463,7 @@ class MainActivity : Activity() {
             }
             if (v.id == main) {
                 mainBtn.isEnabled = false
-                val bg = GradientDrawable()
-                bg.cornerRadius = dp(6).toFloat()
-                bg.setColor(accent)
-                mainBtn.background = bg
+                mainBtn.background = rounded(accent, 12)
                 mainBtn.setTextColor(Color.WHITE)
             }
             button(r, "▶") {
@@ -445,8 +495,8 @@ class MainActivity : Activity() {
         }
         statusText.setTextColor(if (s.phase == Phase.ERROR) Color.parseColor("#D1242F") else labelColor())
         pauseBtn.text = if (s.phase == Phase.PAUSED) "Resume" else "Pause"
-        pauseBtn.isEnabled = s.phase == Phase.PLAYING || s.phase == Phase.PAUSED
-        stopBtn.isEnabled = s.phase == Phase.LOADING || s.phase == Phase.PLAYING || s.phase == Phase.PAUSED
+        setOn(pauseBtn, s.phase == Phase.PLAYING || s.phase == Phase.PAUSED)
+        setOn(stopBtn, s.phase == Phase.LOADING || s.phase == Phase.PLAYING || s.phase == Phase.PAUSED)
     }
 
     // ------------------------------------------------------------------ helpers
@@ -467,10 +517,30 @@ class MainActivity : Activity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
-    private fun labelColor(): Int {
-        val night = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-            android.content.res.Configuration.UI_MODE_NIGHT_YES
-        return if (night) Color.parseColor("#EDEDF0") else Color.parseColor("#1F1F24")
+    private fun labelColor(): Int = textColor
+
+    private fun rounded(color: Int, radiusDp: Int, strokeColor: Int? = null) = GradientDrawable().apply {
+        cornerRadius = dp(radiusDp).toFloat()
+        setColor(color)
+        if (strokeColor != null) setStroke(dp(1), strokeColor)
+    }
+
+    private fun setOn(b: Button, on: Boolean) {
+        b.isEnabled = on
+        b.alpha = if (on) 1f else 0.4f
+    }
+
+    /** A rounded section with a title. */
+    private fun card(parent: LinearLayout, title: String): LinearLayout {
+        val c = LinearLayout(this)
+        c.orientation = LinearLayout.VERTICAL
+        c.background = rounded(cardColor, 18)
+        c.setPadding(dp(16), dp(14), dp(16), dp(16))
+        val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        lp.topMargin = dp(14)
+        parent.addView(c, lp)
+        label(c, title, 17f, bold = true)
+        return c
     }
 
     private fun label(
@@ -480,7 +550,8 @@ class MainActivity : Activity() {
         val t = TextView(this)
         t.text = text
         t.textSize = size
-        t.setTextColor(color ?: labelColor())
+        t.setTextColor(color ?: if (size <= 13f) mutedColor else textColor)
+        t.setLineSpacing(0f, 1.15f)
         if (bold) t.setTypeface(t.typeface, Typeface.BOLD)
         val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         lp.topMargin = dp(top)
@@ -488,7 +559,6 @@ class MainActivity : Activity() {
         return t
     }
 
-    private fun heading(parent: LinearLayout, text: String) = label(parent, text, 18f, bold = true, top = 24)
 
     private fun row(parent: LinearLayout, top: Int = 6): LinearLayout {
         val r = LinearLayout(this)
@@ -500,13 +570,23 @@ class MainActivity : Activity() {
         return r
     }
 
-    private fun button(parent: LinearLayout, text: String, weight: Float = 0f, onClick: () -> Unit): Button {
+    private fun button(
+        parent: LinearLayout, text: String, weight: Float = 0f, primary: Boolean = false, onClick: () -> Unit,
+    ): Button {
         val b = Button(this)
         b.text = text
         b.isAllCaps = false
+        b.textSize = 14f
+        b.setTextColor(if (primary) Color.WHITE else textColor)
+        b.background = rounded(if (primary) accent else Color.parseColor("#2C2330"), 12)
+        b.stateListAnimator = null
+        b.minHeight = dp(44)
+        b.minimumHeight = dp(44)
+        b.setPadding(dp(12), 0, dp(12), 0)
         b.setOnClickListener { onClick() }
         val lp = if (weight > 0f) LinearLayout.LayoutParams(0, WRAP_CONTENT, weight)
         else LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+        lp.setMargins(dp(3), dp(3), dp(3), dp(3))
         parent.addView(b, lp)
         return b
     }
@@ -516,8 +596,12 @@ class MainActivity : Activity() {
         e.hint = hint
         e.setText(value)
         e.setSingleLine(true)
+        e.setTextColor(textColor)
+        e.setHintTextColor(mutedColor)
+        e.background = rounded(fieldColor, 12, Color.parseColor("#3A2F3D"))
+        e.setPadding(dp(12), dp(10), dp(12), dp(10))
         val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
-        lp.topMargin = dp(4)
+        lp.topMargin = dp(6)
         parent.addView(e, lp)
         return e
     }
