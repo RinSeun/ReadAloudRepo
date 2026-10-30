@@ -84,10 +84,6 @@ GitHub builds the app for you, so you never need Android Studio.
 4. The **What's new** pop-up shows once after each update.
 
 ## Good to know
-
-- Keep the repo **private**: it contains the app's signing key (`app/lotusaloud.keystore`), which lets
-  new versions install over old ones. Never change `applicationId` (`com.lss.fishreader`) or the keystore,
-  or updates won't install.
 - Your API keys stay on your phone. Text you read is sent to the voice service you picked, to make the speech.
 - Battery: the bubble barely checks anything while nothing's playing, and the warm-up is one tiny request at most once a minute.
 - Building on a PC instead (optional): open this folder in Android Studio → **Build → Build APK(s)**.
