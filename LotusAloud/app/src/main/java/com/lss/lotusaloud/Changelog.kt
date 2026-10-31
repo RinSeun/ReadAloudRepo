@@ -9,6 +9,21 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "\u26A1 Starts reading faster, no more waiting between parts",
+            listOf(
+                "No more stuttering: if the voice service falls behind, it pauses once to build a cushion instead of choppy start-stop audio.",
+                "Stays three parts ahead on long reads.",
+                "If Fish says \u201ctoo many requests at once\u201d (common on free accounts), it waits a moment and tries again instead of stopping.",
+                "Fixed: long reads sometimes paused between parts. The next part now starts playing even if it's still being made, and the app stays two parts ahead.",
+                "Parts grow more gently (one or two sentences first, then a bit more each time), so the next one is ready in time.",
+                "Audio starts sooner: the first bit read is now just a sentence or two, and the rest is prepared while you listen.",
+                "The next part is only prepared once the current one is playing, so it doesn't slow the start down.",
+                "Lotus Aloud gets the connection ready the moment you touch the bubble, tap the tile or open the app.",
+                "Playback starts as soon as a tenth of a second of audio is ready.",
+                "\u201cFast\u201d start is now the default (Settings \u2192 Start speed vs. quality). Pick Balanced or Best if you prefer.",
+            ),
+        ),
+        Entry(
             "\u2728 New Voices & Settings look",
             listOf(
                 "Voices: your main voice up top, coloured badges per service, tap \u2605 to make a voice main, hold one to remove it.",

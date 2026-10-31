@@ -393,6 +393,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        Providers.warmUp(this)
         refreshSwitches()
         if (intent?.getBooleanExtra(EXTRA_ASK_SCREENSHOTS, false) == true) {
             intent.removeExtra(EXTRA_ASK_SCREENSHOTS)

@@ -35,6 +35,7 @@ class SpeechPlayer {
         const val API_URL = "https://api.fish.audio/v1/tts"
         const val FISH_RATE = 44100
         private const val PIECE_MS = 25 // audio handed to the speaker per write
+        private const val REBUFFER_SEC = 1.5 // cushion to build up if the voice service falls behind
         private const val DISK_CACHE_MAX = 15
 
         /** One player for the whole app (service, bubble, tile, screens). */
@@ -80,12 +81,37 @@ class SpeechPlayer {
     private var message = ""
     private var since = 0L
     private var speed = 1f
+    @Volatile private var startBufferSec = 0.1
     private var track: AudioTrack? = null
     private var cacheDir: File? = null
     private var appCtx: Context? = null
     private var rate = FISH_RATE     // samples per second of the current clip (depends on the voice service)
     private fun bps() = rate * 2     // bytes per second
-    private val inFlight = java.util.Collections.synchronizedSet(HashSet<String>()) // downloads running now
+    private val fetches = HashMap<String, Fetch>() // audio being made right now, by cache key
+
+    /** One piece of audio being downloaded. Several readers can follow it while it grows. */
+    private class Fetch {
+        val lock = Object()
+        var data = ByteArray(1 shl 18)
+        var len = 0
+        var rate = FISH_RATE
+        var done = false
+        var error: String? = null
+        @Volatile var cancelled = false
+
+        fun add(src: ByteArray, n: Int) = synchronized(lock) {
+            if (len + n > data.size) data = data.copyOf(maxOf(data.size * 2, len + n))
+            System.arraycopy(src, 0, data, len, n)
+            len += n
+            lock.notifyAll()
+        }
+
+        fun finish(err: String? = null) = synchronized(lock) {
+            error = err
+            done = true
+            lock.notifyAll()
+        }
+    }
 
     /** Called (on a background thread) when a clip finishes playing to the end. */
     @Volatile var onEnded: (() -> Unit)? = null
@@ -126,7 +152,9 @@ class SpeechPlayer {
 
     fun isBusy(): Boolean = snapshot().phase.let { it == Phase.LOADING || it == Phase.PLAYING || it == Phase.PAUSED }
 
-    fun speak(text: String, voiceId: String, cfg: TtsConfig) {
+    /** onAudio runs (on a background thread) once the first audio for this clip has arrived. */
+    fun speak(text: String, voiceId: String, cfg: TtsConfig, quickStart: Boolean = true, onAudio: (() -> Unit)? = null) {
+        startBufferSec = if (quickStart) 0.1 else 0.6
         val key = sha1(Providers.cacheKey(text, voiceId, cfg))
         val g = synchronized(lock) {
             gen++
@@ -143,35 +171,28 @@ class SpeechPlayer {
             since = System.currentTimeMillis()
             gen
         }
-        Thread({ download(g, key, text, voiceId, cfg) }, "lotus-download").start()
+        Thread({ download(g, key, text, voiceId, cfg, onAudio) }, "lotus-download").start()
         Thread({ play(g) }, "lotus-play").start()
     }
 
-    /** Generates audio in the background and keeps it on the phone, so playing it later starts instantly. */
+    /**
+     * Starts making this audio in the background (if it isn't saved or already on its way).
+     * If it's needed before it's finished, playback picks it up mid-way and streams the rest,
+     * so a part that's only half ready still starts straight away.
+     */
     fun prefetch(text: String, voiceId: String, cfg: TtsConfig) {
-        val ctx = appCtx ?: return
         val key = sha1(Providers.cacheKey(text, voiceId, cfg))
-        if (findCached(key) != null || !inFlight.add(key)) return
-        Thread({
-            try {
-                when (val src = Providers.open(ctx, text, voiceId, cfg)) {
-                    is AudioSource.Bytes -> if (src.data.size > 1) saveToCache(key, src.rate, src.data)
-                    is AudioSource.Stream -> try {
-                        val data = src.input.use { it.readBytes() }
-                        if (data.size > 1) saveToCache(key, src.rate, data)
-                    } finally {
-                        src.conn.disconnect()
-                    }
-                }
-            } catch (e: Exception) {
-                // it'll simply be generated when it's needed
-            } finally {
-                inFlight.remove(key)
-            }
-        }, "lotus-prefetch").start()
+        if (findCached(key) != null) return
+        fetch(key, text, voiceId, cfg)
+    }
+
+    /** Lets go of background downloads nobody is listening to (after Stop). */
+    fun cancelPrefetches() {
+        synchronized(fetches) { fetches.values.forEach { it.cancelled = true } }
     }
 
     fun stop() {
+        cancelPrefetches()
         synchronized(lock) {
             gen++
             paused = false
@@ -302,15 +323,72 @@ class SpeechPlayer {
     }
 
     // ------------------------------------------------------------------ download
-    private fun download(g: Int, key: String, text: String, voiceId: String, cfg: TtsConfig) {
-        // If this exact audio is already being prepared in the background, wait for it
-        val waitUntil = System.currentTimeMillis() + 90_000
-        while (inFlight.contains(key) && System.currentTimeMillis() < waitUntil) {
-            if (synchronized(lock) { g != gen }) return
-            Thread.sleep(50)
+    /** Returns the download for this key, starting it if needed. */
+    private fun fetch(key: String, text: String, voiceId: String, cfg: TtsConfig): Fetch {
+        synchronized(fetches) {
+            fetches[key]?.let { if (!it.cancelled) return it } // a stopped one is replaced with a fresh download
+            val f = Fetch()
+            fetches[key] = f
+            Thread({ runFetch(key, f, text, voiceId, cfg) }, "lotus-fetch").start()
+            return f
         }
-        // Replay from the phone if we've generated this exact audio before
-        val cached = findCached(key)
+    }
+
+    private fun runFetch(key: String, f: Fetch, text: String, voiceId: String, cfg: TtsConfig) {
+        val ctx = appCtx
+        var src: AudioSource? = null
+        var complete = false // read to the end: the connection is kept open and reused (faster)
+        try {
+            if (ctx == null) throw ProviderError("Lotus Aloud wasn't ready - try again.")
+            val s = Providers.open(ctx, text, voiceId, cfg)
+            src = s
+            f.rate = s.rate
+            when (s) {
+                is AudioSource.Bytes -> f.add(s.data, s.data.size)
+                is AudioSource.Stream -> {
+                    val chunk = ByteArray(16384)
+                    s.input.use { input ->
+                        while (true) {
+                            if (f.cancelled) return
+                            val n = input.read(chunk)
+                            if (n < 0) break
+                            if (n > 0) f.add(chunk, n)
+                        }
+                    }
+                    complete = true
+                }
+            }
+            val copy = synchronized(f.lock) { f.data.copyOf(f.len) }
+            if (copy.size < 2) {
+                f.finish("The voice service sent no audio.")
+            } else {
+                saveToCache(key, f.rate, copy)
+                f.finish()
+            }
+        } catch (e: ProviderError) {
+            f.finish(e.message ?: "The voice service had a problem.")
+        } catch (e: IOException) {
+            // connection dropped: keep what we got, if anything
+            f.finish(if (synchronized(f.lock) { f.len } > 1) null else "Couldn't reach the voice service. Check your internet connection.")
+        } catch (e: Exception) {
+            f.finish("Something went wrong: ${e.message}")
+        } finally {
+            if (!f.done) f.finish("Stopped.")
+            if (!complete) (src as? AudioSource.Stream)?.conn?.disconnect()
+            synchronized(fetches) { if (fetches[key] === f) fetches.remove(key) }
+        }
+    }
+
+    /** Feeds this clip from saved audio, or follows its download as it comes in. */
+    private fun download(g: Int, key: String, text: String, voiceId: String, cfg: TtsConfig, onAudio: (() -> Unit)?) {
+        var told = false
+        fun audioArrived() {
+            if (told) return
+            told = true
+            try { onAudio?.invoke() } catch (e: Exception) {}
+        }
+        // saved on the phone from before: instant and free
+        val cached = if (synchronized(fetches) { fetches.containsKey(key) }) null else findCached(key)
         if (cached != null) {
             try {
                 val data = cached.first.readBytes()
@@ -322,83 +400,61 @@ class SpeechPlayer {
                     len = data.size
                     done = true
                 }
+                audioArrived()
                 return
             } catch (e: Exception) {
                 // fall through and generate it again
             }
         }
 
-        val ctx = appCtx ?: return fail(g, "Lotus Aloud wasn't ready - try again.")
-        var source: AudioSource? = null
-        inFlight.add(key)
-        try {
-            val src = Providers.open(ctx, text, voiceId, cfg)
-            source = src
-            when (src) {
-                is AudioSource.Bytes -> {
-                    synchronized(lock) {
-                        if (g != gen) return
-                        rate = src.rate
-                        buf = src.data
-                        len = src.data.size
-                        done = true
-                    }
-                    if (src.data.size > 1) saveToCache(key, src.rate, src.data)
+        // being made already (prepared ahead) or start it now - either way, play as it arrives
+        val f = fetch(key, text, voiceId, cfg)
+        var copied = 0
+        while (true) {
+            var newBytes: ByteArray? = null
+            var finished = false
+            var err: String? = null
+            var r = FISH_RATE
+            synchronized(f.lock) {
+                if (f.len == copied && !f.done) f.lock.wait(40)
+                if (f.len > copied) {
+                    newBytes = f.data.copyOfRange(copied, f.len)
+                    copied = f.len
                 }
-                is AudioSource.Stream -> {
-                    synchronized(lock) { if (g == gen) rate = src.rate }
-                    val chunk = ByteArray(16384)
-                    src.input.use { input ->
-                        while (true) {
-                            val n = input.read(chunk)
-                            if (n < 0) break
-                            if (n > 0) {
-                                val stillMine = synchronized(lock) {
-                                    if (g == gen) { append(chunk, n); true } else false
-                                }
-                                if (!stillMine) return
-                            }
-                        }
+                finished = f.done && f.len == copied
+                err = f.error
+                r = f.rate
+            }
+            val nb = newBytes
+            val stillMine = synchronized(lock) {
+                if (g != gen) false else {
+                    if (nb != null) {
+                        if (len == 0) rate = r
+                        append(nb, nb.size)
                     }
-                    val copy = synchronized(lock) {
-                        if (g != gen) return
-                        done = true
-                        if (len < 2) {
-                            message = "The voice service sent no audio."
-                            setPhase(Phase.ERROR)
-                            return
-                        }
-                        buf.copyOf(len)
-                    }
-                    saveToCache(key, src.rate, copy)
+                    true
                 }
             }
-        } catch (e: ProviderError) {
-            fail(g, e.message ?: "The voice service had a problem.")
-        } catch (e: IOException) {
-            val haveSome = synchronized(lock) { g == gen && len > 1 }
-            if (haveSome) {
-                synchronized(lock) { if (g == gen) done = true } // connection dropped: play what we got
-            } else {
-                fail(g, "Couldn't reach the voice service. Check your internet connection.")
+            if (!stillMine) return // you skipped or stopped; the download carries on and gets saved for later
+            if (nb != null) audioArrived()
+            if (finished) {
+                if (err != null && copied < 2) return fail(g, err!!)
+                synchronized(lock) { if (g == gen) done = true }
+                return
             }
-        } catch (e: Exception) {
-            fail(g, "Something went wrong: ${e.message}")
-        } finally {
-            inFlight.remove(key)
-            (source as? AudioSource.Stream)?.conn?.disconnect()
         }
     }
 
     // ------------------------------------------------------------------ playback
     private fun play(g: Int) {
-        // wait for the first ~0.2 s of audio (or the whole clip if it's shorter)
+        // wait for the first bit of audio (0.1 s for a fresh read, a bit more for a later part
+        // that's still being made, so it doesn't run dry), or the whole clip if it's shorter
         while (true) {
             val st = synchronized(lock) {
                 val avail = len - pos
                 when {
                     g != gen || phase == Phase.ERROR -> -1
-                    avail >= bps() / 5 || (done && avail >= 2) -> 1
+                    avail >= (bps() * startBufferSec * speed).toInt() || (done && avail >= 2) -> 1
                     done -> -1
                     else -> 0
                 }
@@ -443,6 +499,7 @@ class SpeechPlayer {
         }
 
         try {
+            var rebuffering = false
             outer@ while (true) {
                 // ---- feed audio to the speaker
                 while (true) {
@@ -456,9 +513,19 @@ class SpeechPlayer {
                             quit = true
                         } else if (!paused) {
                             val avail = (len - pos) and 1.inv() // whole samples only
-                            if (avail <= 0) {
-                                if (done) finished = true else piece = ByteArray(0) // still generating
+                            if (rebuffering && !done && avail < (bps() * REBUFFER_SEC * speed).toInt()) {
+                                piece = ByteArray(0) // caught up with the voice service: let a cushion build up
+                            } else if (avail <= 0) {
+                                if (done) {
+                                    finished = true
+                                } else {
+                                    // ran out mid-sentence: pause once for a cushion instead of stuttering
+                                    piece = ByteArray(0)
+                                    rebuffering = true
+                                    setPhase(Phase.LOADING)
+                                }
                             } else {
+                                rebuffering = false
                                 val n = minOf(pieceBytes, avail)
                                 piece = buf.copyOfRange(pos, pos + n)
                                 pos += n

@@ -84,9 +84,11 @@ object Providers {
     // ------------------------------------------------------------------ Fish Audio
     private fun openFish(text: String, voiceId: String, cfg: TtsConfig): AudioSource {
         val body = SpeechPlayer.buildBody(text, voiceId, cfg.quality)
-        val c = post(SpeechPlayer.API_URL, body.toString()) {
-            it.setRequestProperty("Authorization", "Bearer ${cfg.fishKey.trim()}")
-            it.setRequestProperty("model", cfg.fishModel)
+        val c = withRetry {
+            post(SpeechPlayer.API_URL, body.toString()) {
+                it.setRequestProperty("Authorization", "Bearer ${cfg.fishKey.trim()}")
+                it.setRequestProperty("model", cfg.fishModel)
+            }
         }
         val code = c.responseCode
         if (code != 200) {
@@ -103,7 +105,7 @@ object Providers {
     private fun openEleven(text: String, voice: String, cfg: TtsConfig): AudioSource {
         val body = JSONObject().put("text", text).put("model_id", elevenModel(cfg.quality))
         val url = "https://api.elevenlabs.io/v1/text-to-speech/$voice/stream?output_format=pcm_$ELEVEN_RATE"
-        val c = post(url, body.toString()) { it.setRequestProperty("xi-api-key", cfg.elevenKey.trim()) }
+        val c = withRetry { post(url, body.toString()) { it.setRequestProperty("xi-api-key", cfg.elevenKey.trim()) } }
         val code = c.responseCode
         if (code != 200) {
             val detail = readError(c)
@@ -152,6 +154,62 @@ object Providers {
     }
 
     // ------------------------------------------------------------------ http helpers
+    /**
+     * "Too many at once" (429 - e.g. several parts being prepared together on a free account):
+     * wait a moment and try again instead of failing.
+     */
+    private fun withRetry(request: () -> HttpURLConnection): HttpURLConnection {
+        var wait = 400L
+        repeat(5) {
+            val c = request()
+            if (c.responseCode != 429) return c
+            readError(c)
+            c.disconnect()
+            Thread.sleep(wait)
+            wait *= 2
+        }
+        return request()
+    }
+
+    // ------------------------------------------------------------------ warm-up
+    @Volatile private var lastWarm = 0L
+
+    /**
+     * Opens the connection to the main voice's service ahead of time (address lookup + secure
+     * handshake), so the real request a moment later starts sooner. Cheap, and at most once a minute.
+     */
+    fun warmUp(ctx: Context) {
+        val now = System.currentTimeMillis()
+        if (now - lastWarm < 60_000) return
+        lastWarm = now
+        val prefs = Prefs(ctx)
+        val voice = prefs.mainVoice
+        val cfg = TtsConfig.from(prefs)
+        val app = ctx.applicationContext
+        Thread({
+            try {
+                when (of(voice)) {
+                    PHONE -> PhoneTts.warm(app)
+                    ELEVEN -> if (cfg.elevenKey.isNotBlank()) touch("https://api.elevenlabs.io/v1/user/subscription") {
+                        it.setRequestProperty("xi-api-key", cfg.elevenKey.trim())
+                    }
+                    else -> if (cfg.fishKey.isNotBlank()) touch("https://api.fish.audio/wallet/self/api-credit") {
+                        it.setRequestProperty("Authorization", "Bearer ${cfg.fishKey.trim()}")
+                    }
+                }
+            } catch (e: Exception) {
+                lastWarm = 0L
+            }
+        }, "lotus-warm").start()
+    }
+
+    /** A small request whose connection is kept open for reuse (read fully, not disconnected). */
+    private fun touch(url: String, headers: (HttpURLConnection) -> Unit) {
+        val c = get(url, headers)
+        val code = c.responseCode
+        (if (code in 200..299) c.inputStream else c.errorStream)?.use { it.readBytes() }
+    }
+
     private fun post(url: String, json: String, headers: (HttpURLConnection) -> Unit): HttpURLConnection {
         val c = URL(url).openConnection() as HttpURLConnection
         c.requestMethod = "POST"
@@ -183,6 +241,11 @@ object Providers {
 object PhoneTts {
     private var tts: TextToSpeech? = null
     private val useLock = Object()
+
+    /** Starts the phone's speech engine early so the first read doesn't wait for it. */
+    fun warm(ctx: Context) {
+        try { engine(ctx) } catch (e: Exception) {}
+    }
 
     /** Starts the phone's speech engine (once) and waits until it's ready. */
     private fun engine(ctx: Context): TextToSpeech {

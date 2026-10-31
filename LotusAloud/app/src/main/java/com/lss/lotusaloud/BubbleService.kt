@@ -179,6 +179,7 @@ class BubbleService : Service() {
         container.setOnTouchListener { v, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    Providers.warmUp(this) // get the connection ready while your finger is still down
                     downX = e.rawX; downY = e.rawY
                     startX = lp.x; startY = lp.y
                     dragging = false; longPressed = false
@@ -250,7 +251,7 @@ class BubbleService : Service() {
             readLatestScreenshot()
         } else {
             waitingForSecondTap = true
-            handler.postDelayed(singleTap, 320)
+            handler.postDelayed(singleTap, 260)
         }
     }
 

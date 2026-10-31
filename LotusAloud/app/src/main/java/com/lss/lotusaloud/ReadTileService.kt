@@ -30,6 +30,7 @@ class ReadTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
+        Providers.warmUp(this)
         if (isBusy()) {
             SpeechPlayer.shared.stop()
             onStartListening()

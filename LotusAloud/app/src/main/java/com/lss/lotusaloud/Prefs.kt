@@ -20,7 +20,7 @@ class Prefs(context: Context) {
 
     /** fast | balanced | quality */
     var quality: String
-        get() = sp.getString("quality", "balanced") ?: "balanced"
+        get() = sp.getString("quality", "fast") ?: "fast"
         set(v) { sp.edit().putString("quality", v).apply() }
 
     var speed: Float

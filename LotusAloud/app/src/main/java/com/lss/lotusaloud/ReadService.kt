@@ -234,10 +234,11 @@ class ReadService : Service() {
         ReadSession.pendingFraction = null
         lastDuration = -1.0
         player.setSpeed(prefs.speed)
-        player.speak(parts[i], ReadSession.voice, TtsConfig.from(prefs))
-        if (i + 1 < parts.size) {
-            player.prefetch(parts[i + 1], ReadSession.voice, TtsConfig.from(prefs))
-        }
+        val cfg = TtsConfig.from(prefs)
+        val voice = ReadSession.voice
+        // the next three parts are prepared once this one's audio is coming in, so they don't slow the start down
+        val ahead = (i + 1..i + 3).mapNotNull { parts.getOrNull(it) }
+        player.speak(parts[i], voice, cfg, quickStart = i == 0) { ahead.forEach { player.prefetch(it, voice, cfg) } }
         handler.removeCallbacks(tick)
         handler.post(tick)
     }
