@@ -10,6 +10,7 @@ object Changelog {
                 "Language pills under the lotus on the Player tab: tap Original, a recent language, or + More.",
                 "Switch while something is playing and it carries on in the new language from about the same spot.",
                 "A fresh look for this What's new screen, with an Updates card to grab the latest version.",
+                "Recent reads keep just your last 10, and saved audio never takes more than 40 MB. Settings \u2192 Clear recent reads empties it any time.",
                 "New installs start with your phone's free voice, so friends can try it straight away. Your own voices stay as they are.",
             ),
         ),

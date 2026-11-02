@@ -397,6 +397,21 @@ class MainActivity : Activity() {
         }
         divider(g)
         settingsRow(g, "What's new", null).first.setOnClickListener { showWhatsNew() }
+        divider(g)
+        val clearRow = settingsRow(g, "Clear recent reads", savedText())
+        clearRow.first.setOnClickListener {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Clear recent reads?")
+                .setMessage("This removes your recent reads and the audio saved for replaying them.")
+                .setPositiveButton("Clear") { _, _ ->
+                    History.clear(this)
+                    renderHistory()
+                    clearRow.second.text = savedText()
+                    toast("Recent reads cleared.")
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
         if (Edition.PLAY) {
             divider(g)
             settingsRow(g, "Report a problem with audio", "Offensive, misleading or broken").first.setOnClickListener { Report.show(this) }
@@ -1079,6 +1094,11 @@ class MainActivity : Activity() {
                 .setPositiveButton("Got it", null)
                 .show()
         }
+    }
+
+    private fun savedText(): String {
+        val mb = SpeechPlayer.savedBytes(this) / (1024.0 * 1024.0)
+        return "Keeps your last ${History.MAX} \u00b7 saved audio ${String.format("%.1f", mb)} MB (max 40 MB)"
     }
 
     private fun pickTranslate() {

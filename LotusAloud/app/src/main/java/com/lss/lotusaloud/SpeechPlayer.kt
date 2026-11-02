@@ -31,7 +31,16 @@ class SpeechPlayer {
         const val FISH_RATE = 44100
         private const val PIECE_MS = 25
         private const val REBUFFER_SEC = 1.5
-        private const val DISK_CACHE_MAX = 15
+        private const val DISK_CACHE_MAX = 30
+        private const val DISK_CACHE_BYTES = 40L * 1024 * 1024
+
+        /** Deletes all saved audio (used by "Clear recent reads"). */
+        fun clearSaved(ctx: Context) {
+            File(ctx.cacheDir, "reads").listFiles()?.forEach { it.delete() }
+        }
+
+        /** How much room saved audio takes, in bytes. */
+        fun savedBytes(ctx: Context): Long = File(ctx.cacheDir, "reads").listFiles()?.sumOf { it.length() } ?: 0L
 
         val shared = SpeechPlayer()
 
@@ -296,7 +305,11 @@ class SpeechPlayer {
             tmp.writeBytes(data)
             tmp.renameTo(File(dir, "$key.$sampleRate.pcm"))
             val files = dir.listFiles { f -> f.name.endsWith(".pcm") }?.sortedByDescending { it.lastModified() } ?: return
-            files.drop(DISK_CACHE_MAX).forEach { it.delete() }
+            var total = 0L
+            files.forEachIndexed { i, f ->
+                total += f.length()
+                if (i >= DISK_CACHE_MAX || total > DISK_CACHE_BYTES) f.delete()
+            }
         } catch (e: Exception) {
         }
     }
