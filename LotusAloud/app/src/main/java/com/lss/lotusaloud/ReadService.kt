@@ -38,6 +38,9 @@ class ReadService : Service() {
         const val ACTION_PREV_PART = "com.lss.lotusaloud.PREV_PART"
         const val ACTION_JUMP = "com.lss.lotusaloud.JUMP"
         const val ACTION_RETRANSLATE = "com.lss.lotusaloud.RETRANSLATE"
+        const val ACTION_READ_SAVED = "com.lss.lotusaloud.READ_SAVED"
+        const val EXTRA_ID = "id"
+        const val EXTRA_FROM_START = "fromStart"
         const val EXTRA_PART = "part"
         const val EXTRA_FRACTION = "fraction"
         const val EXTRA_PATHS = "paths"
@@ -64,6 +67,14 @@ class ReadService : Service() {
             val i = Intent(ctx, ReadService::class.java).setAction(ACTION_READ_DOC)
                 .putExtra(EXTRA_PATHS, arrayOf(path)).putExtra(EXTRA_MIME, mime).putExtra(EXTRA_NAME, name)
             ctx.startForegroundService(i)
+        }
+
+        /** Plays a Saved Read from where it stopped (or from the start). */
+        fun readSaved(ctx: Context, id: String, fromStart: Boolean = false) {
+            ctx.startForegroundService(
+                Intent(ctx, ReadService::class.java).setAction(ACTION_READ_SAVED)
+                    .putExtra(EXTRA_ID, id).putExtra(EXTRA_FROM_START, fromStart)
+            )
         }
 
         fun readImages(ctx: Context, paths: List<String>) {
@@ -99,6 +110,8 @@ class ReadService : Service() {
     private var focusRequest: AudioFocusRequest? = null
 
     @Volatile private var preparing: String? = null
+    private var lastSpotAt = 0L
+    private var lastSpotPhase: Phase? = null
     private val tick = object : Runnable {
         override fun run() = update()
     }
@@ -176,14 +189,20 @@ class ReadService : Service() {
                     Thread({
                         val result = try {
                             Result.success(Documents.extract(this, path, mime, name) { page, total ->
-                                handler.post { preparing = "Reading page $page of $total..."; update() }
+                                val what = if (Saved.kindFor(name, mime) == SavedRead.KIND_BOOK) "chapter" else "page"
+                                handler.post { preparing = "Reading $what $page of $total..."; update() }
                             })
                         } catch (e: Exception) {
                             Result.failure(e)
                         }
                         handler.post {
                             preparing = null
-                            result.onSuccess { startText(it.text, null, true, it.title) }
+                            result.onSuccess { doc ->
+                                val saved = if (Prefs(this).autoSave) Saved.add(this, doc.title, doc.text, doc.kind) else null
+                                val from = saved?.resumeFrom ?: 0.0
+                                if (from > 0.0) Toast.makeText(this, "Continuing from ${saved?.percent}%", Toast.LENGTH_SHORT).show()
+                                startText(doc.text, null, true, doc.title, from, saved?.id)
+                            }
                                 .onFailure { player.showError((it as? ProviderError)?.message ?: "Couldn't read that document.") }
                             update()
                         }
@@ -194,7 +213,26 @@ class ReadService : Service() {
                 val orig = ReadSession.original
                 if (orig.isNotBlank() && ReadSession.count > 0) {
                     val frac = ReadSession.index.toDouble() / ReadSession.count
-                    startText(orig, ReadSession.chosenVoice, false, ReadSession.originalTitle, frac)
+                    startText(orig, ReadSession.chosenVoice, false, ReadSession.originalTitle, frac, ReadSession.savedId)
+                }
+            }
+            ACTION_READ_SAVED -> {
+                val id = intent.getStringExtra(EXTRA_ID) ?: ""
+                val item = Saved.get(this, id)
+                val text = item?.let { Saved.text(this, it.id) }
+                if (item == null || text.isNullOrBlank()) {
+                    player.showError("That saved read is gone.")
+                } else {
+                    val prefs = Prefs(this)
+                    val sameLang = item.lang == prefs.translateTo
+                    val voice = item.voice.takeIf { v -> sameLang && v.isNotBlank() && prefs.voices.any { it.id == v } }
+                    if (!prefs.hasKeyFor(voice ?: prefs.mainVoice)) {
+                        player.showError(Providers.missingKeyText(voice ?: prefs.mainVoice))
+                    } else {
+                        val from = if (intent.getBooleanExtra(EXTRA_FROM_START, false)) 0.0 else item.resumeFrom
+                        Saved.update(this, id) { it.copy(opened = System.currentTimeMillis(), done = if (from == 0.0) false else it.done) }
+                        startText(text, voice, false, item.title, from, id)
+                    }
                 }
             }
             ACTION_NEXT_PART -> nextPart()
@@ -238,23 +276,32 @@ class ReadService : Service() {
                 val result = try { Result.success(Article.fetch(link)) } catch (e: Exception) { Result.failure(e) }
                 handler.post {
                     preparing = null
-                    result.onSuccess { startText(it.text, voiceOverride, record, it.title) }
+                    result.onSuccess { art ->
+                        val saved = if (record && Prefs(this).autoSave) Saved.add(this, art.title, art.text, SavedRead.KIND_WEB) else null
+                        startText(art.text, voiceOverride, record, art.title, saved?.resumeFrom ?: 0.0, saved?.id)
+                    }
                         .onFailure { player.showError(it.message ?: "Couldn't read that link.") }
                     update()
                 }
             }, "lotus-article").start()
             return
         }
-        startText(raw, voiceOverride, record, null)
+        val saved = if (record && raw.length >= Saved.LONG_TEXT && Prefs(this).autoSave) {
+            Saved.add(this, Saved.titleFor(raw), raw, SavedRead.KIND_TEXT)
+        } else null
+        startText(raw, voiceOverride, record, null, saved?.resumeFrom ?: 0.0, saved?.id)
     }
 
-    private fun startText(raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?, startFraction: Double = 0.0) {
+    private fun startText(
+        raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?,
+        startFraction: Double = 0.0, savedId: String? = null,
+    ) {
         val prefs = Prefs(this)
         val target = prefs.translateTo
         val original = TextCleaner.clean(SmartSkip.apply(raw, prefs))
         val mainIsPhone = Providers.of(prefs.mainVoice) == Providers.PHONE
         if (target.isBlank() && (voiceOverride != null || (!prefs.hasLangVoices && !mainIsPhone))) {
-            return startTextNow(original, voiceOverride, record, titleOverride, original, startFraction, voiceOverride)
+            return startTextNow(original, voiceOverride, record, titleOverride, original, startFraction, voiceOverride, savedId)
         }
         player.stop()
         preparing = if (target.isBlank()) "Getting ready..." else "Translating to ${Translate.label(target)}..."
@@ -272,7 +319,7 @@ class ReadService : Service() {
             }
             handler.post {
                 preparing = null
-                result.onSuccess { (text, voice) -> startTextNow(text, voice, record, titleOverride, original, startFraction, voiceOverride) }
+                result.onSuccess { (text, voice) -> startTextNow(text, voice, record, titleOverride, original, startFraction, voiceOverride, savedId) }
                     .onFailure { player.showError((it as? ProviderError)?.message ?: "Couldn't translate that.") }
                 update()
             }
@@ -282,6 +329,7 @@ class ReadService : Service() {
     private fun startTextNow(
         raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?,
         original: String = raw, startFraction: Double = 0.0, chosenVoice: String? = voiceOverride,
+        savedId: String? = null,
     ) {
         val prefs = Prefs(this)
         val text = TextCleaner.clean(raw)
@@ -297,8 +345,18 @@ class ReadService : Service() {
         ReadSession.original = original
         ReadSession.originalTitle = titleOverride
         ReadSession.chosenVoice = chosenVoice
+        ReadSession.savedId = savedId
+        lastSpotPhase = null
+        if (savedId != null) {
+            val lang = prefs.translateTo
+            Thread({ Saved.update(this, savedId) { it.copy(voice = voice, lang = lang) } }, "lotus-saved").start()
+        }
         requestFocus()
-        playPart((startFraction * parts.size).toInt().coerceIn(0, parts.size - 1))
+        val pos = startFraction.coerceIn(0.0, 1.0) * parts.size
+        val first = pos.toInt().coerceIn(0, parts.size - 1)
+        playPart(first)
+        val rest = pos - first
+        if (rest in 0.03..0.97) ReadSession.pendingFraction = rest
     }
 
     private fun playPart(i: Int) {
@@ -373,6 +431,7 @@ class ReadService : Service() {
             Toast.makeText(this, s.message, Toast.LENGTH_LONG).show()
         }
         updateSession(s)
+        rememberSpot(s)
         val jump = ReadSession.pendingFraction
         if (jump != null && s.phase == Phase.PLAYING && !s.streaming && s.duration > 0) {
             ReadSession.pendingFraction = null
@@ -394,6 +453,23 @@ class ReadService : Service() {
         getSystemService(NotificationManager::class.java)?.notify(NOTIF_ID, buildNotification(s))
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, 400)
+    }
+
+    /** Saves where you are in a Saved Read every few seconds, and when you pause or finish. */
+    private fun rememberSpot(s: SpeechPlayer.State) {
+        val id = ReadSession.savedId ?: return
+        val count = ReadSession.count
+        if (count == 0) return
+        if (s.phase != Phase.PLAYING && s.phase != Phase.PAUSED && s.phase != Phase.ENDED) return
+        if (ReadSession.pendingFraction != null) return
+        val now = System.currentTimeMillis()
+        if (s.phase == lastSpotPhase && now - lastSpotAt < 5000) return
+        lastSpotAt = now
+        lastSpotPhase = s.phase
+        val finished = s.phase == Phase.ENDED && !ReadSession.hasNext
+        val inPart = if (!s.streaming && s.duration > 0) (s.current / s.duration).coerceIn(0.0, 1.0) else 0.0
+        val frac = if (finished) 1.0 else ((ReadSession.index + inPart) / count).coerceIn(0.0, 0.999)
+        Thread({ Saved.update(this, id) { it.copy(fraction = frac, done = finished, opened = now) } }, "lotus-saved").start()
     }
 
     private fun updateSession(s: SpeechPlayer.State) {

@@ -5,10 +5,20 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "\uD83D\uDCDA Saved Reads & themes",
+            listOf(
+                "New Saved tab: your documents, books, articles and long reads are kept on a shelf, and Lotus Aloud remembers where you stopped. Tap \u25B6 to carry on, or tap a read to start over, rename it, mark it finished or remove it.",
+                "Open the same document again and it carries on from your spot.",
+                "EPUB books now work (books without copy protection), along with PDF, Word and text files.",
+                "Only the text and your spot are kept, never the audio, so Saved Reads stays small.",
+                "Themes (Settings \u2192 Look): Lotus, Ocean, Jade, Violet, Sunset, Gold and Sakura, plus a pure black background for OLED screens.",
+            ),
+        ),
+        Entry(
             "\u2702 Smart skipping & pronunciation",
             listOf(
                 "Smart skipping (Settings \u2192 Cleaner reading): skips headers and footers that repeat on every page, page numbers, citations like [12] or (Smith et al., 2020), long links, DOIs and email addresses, and the reference list at the end. Tap it to choose what gets skipped.",
-                "Pronunciation: teach Lotus Aloud how to say names and words it gets wrong (LSS \u2192 L S S, OutBreak \u2192 Out Break). Works with every voice, and Follow along still shows the original word.",
+                "Pronunciation: teach Lotus Aloud how to say names and words it gets wrong (LSS \u2192 L S S, Nguyen \u2192 Win). Works with every voice, and Follow along still shows the original word.",
             ),
         ),
         Entry(

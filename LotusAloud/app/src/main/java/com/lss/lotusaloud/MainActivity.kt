@@ -41,15 +41,16 @@ import com.lss.lotusaloud.SpeechPlayer.Phase
 class MainActivity : Activity() {
     companion object {
         const val EXTRA_ASK_SCREENSHOTS = "askScreenshots"
+        private var reopenTab: Int? = null
         private const val SCREENSHOT_PERMISSION_REQUEST = 7
     }
 
-    private val accent = Color.parseColor("#FA1E4E")
-    private val bgColor = Color.parseColor("#120E14")
-    private val cardColor = Color.parseColor("#1E1820")
-    private val fieldColor = Color.parseColor("#15101A")
-    private val textColor = Color.parseColor("#F3EDF2")
-    private val mutedColor = Color.parseColor("#A79BA6")
+    private val accent: Int get() = Look.accent
+    private val bgColor: Int get() = Look.bg
+    private val cardColor: Int get() = Look.card
+    private val fieldColor: Int get() = Look.field
+    private val textColor: Int get() = Look.text
+    private val mutedColor: Int get() = Look.muted
     private val player get() = SpeechPlayer.shared
     private val handler = Handler(Looper.getMainLooper())
 
@@ -61,6 +62,9 @@ class MainActivity : Activity() {
     private lateinit var apiKeyEdit: EditText
     private lateinit var elevenKeyEdit: EditText
     private lateinit var historyBox: LinearLayout
+    private lateinit var savedBox: LinearLayout
+    private var savedStamp = -1L
+    private var currentTab = 0
     private lateinit var bubbleSwitch: android.widget.Switch
     private lateinit var shotsSwitch: android.widget.Switch
     private lateinit var summaryText: TextView
@@ -94,6 +98,7 @@ class MainActivity : Activity() {
     private val poll = object : Runnable {
         override fun run() {
             refreshStatus()
+            if (currentTab == 1) renderSaved()
             handler.postDelayed(this, 400)
         }
     }
@@ -101,6 +106,9 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
+        Look.load(prefs)
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Look.bg))
+        window.navigationBarColor = Look.bar
 
         val outer = LinearLayout(this)
         outer.orientation = LinearLayout.VERTICAL
@@ -113,7 +121,7 @@ class MainActivity : Activity() {
         outer.addView(topBar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         val pageHolder = android.widget.FrameLayout(this)
         outer.addView(pageHolder, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
-        val (playerPage, voicesPage, settingsPage) = List(3) {
+        val (playerPage, savedPage, voicesPage, settingsPage) = List(4) {
             val page = LinearLayout(this)
             page.orientation = LinearLayout.VERTICAL
             page.setPadding(dp(16), 0, dp(16), dp(28))
@@ -148,7 +156,7 @@ class MainActivity : Activity() {
         glow.background = GradientDrawable().apply {
             gradientType = GradientDrawable.RADIAL_GRADIENT
             gradientRadius = dp(110).toFloat()
-            colors = intArrayOf(Color.argb(110, 250, 30, 78), Color.argb(0, 250, 30, 78))
+            colors = intArrayOf(Look.accentA(110), Look.accentA(0))
         }
         hero.addView(glow, android.widget.FrameLayout.LayoutParams(dp(240), dp(240), Gravity.CENTER))
         heroLogo = android.widget.ImageView(this)
@@ -207,7 +215,7 @@ class MainActivity : Activity() {
             if (requireKey()) ReadService.read(this, paste.text.toString())
         }
         button(row(cur), "\uD83D\uDCF7 Read a screenshot or photo", 1f) { pickImage() }
-        button(row(cur), "\uD83D\uDCC4 Read a document (PDF, Word)", 1f) { pickDocument() }
+        button(row(cur), "\uD83D\uDCC4 Read a document (PDF, Word, EPUB)", 1f) { pickDocument() }
         label(
             cur,
             "Paste a webpage link to hear the article. Or take a screenshot \u2192 Share \u2192 Lotus Aloud.",
@@ -220,6 +228,19 @@ class MainActivity : Activity() {
         historyBox.orientation = LinearLayout.VERTICAL
         cur.addView(historyBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         renderHistory()
+
+        bigTitle(savedPage, "Saved Reads")
+        label(
+            savedPage,
+            "Documents, books, articles and long reads are kept here, and Lotus Aloud remembers where you stopped. " +
+                "Only the text is kept on your phone, not the audio.",
+            13f, top = 2,
+        ).setPadding(dp(10), 0, dp(10), 0)
+        button(row(savedPage, 12), "\uD83D\uDCC4  Add a document (PDF, Word, EPUB)", 1f, primary = true) { pickDocument() }
+        savedBox = LinearLayout(this)
+        savedBox.orientation = LinearLayout.VERTICAL
+        savedPage.addView(savedBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        renderSaved()
 
         bigTitle(voicesPage, "Voices")
         sectionLabel(voicesPage, "MAIN VOICE")
@@ -304,7 +325,7 @@ class MainActivity : Activity() {
         fun showSpeed() {
             val txt = String.format("%.1fx", 0.5f + seek.progress / 10f)
             val sp = android.text.SpannableString(txt)
-            sp.setSpan(ForegroundColorSpan(Color.parseColor("#FF6B8A")), txt.length - 1, txt.length, 0)
+            sp.setSpan(ForegroundColorSpan(Look.soft), txt.length - 1, txt.length, 0)
             sp.setSpan(android.text.style.RelativeSizeSpan(0.6f), txt.length - 1, txt.length, 0)
             speedValue.text = sp
         }
@@ -325,7 +346,7 @@ class MainActivity : Activity() {
         val ticks = row(speedBox, 2)
         ticks.setPadding(dp(46), 0, dp(46), 0)
         listOf("0.5", "1", "1.5", "2").forEachIndexed { n, t ->
-            val tv = label(ticks, t, 11f, color = Color.parseColor("#7E7280"))
+            val tv = label(ticks, t, 11f, color = Look.faint)
             tv.gravity = when (n) { 0 -> Gravity.START; 3 -> Gravity.END; else -> Gravity.CENTER }
             tv.layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
         }
@@ -382,6 +403,44 @@ class MainActivity : Activity() {
                     pickLangVoice(langs[i].second)
                 }
                 .setNegativeButton("Close", null)
+                .show()
+        }
+
+        sectionLabel(settingsPage, "LOOK")
+        g = group(settingsPage)
+        val themeRow = settingsRow(g, "Theme", Look.THEMES[Look.index].name, valuePink = true)
+        themeRow.first.setOnClickListener { pickTheme() }
+        divider(g)
+        val blackRow = settingsRow(g, "Pure black background", "Deeper blacks, easier on OLED screens", chevron = false)
+        val blackSwitch = switchOn(blackRow.first) { on ->
+            if (on != prefs.pureBlack) { prefs.pureBlack = on; applyTheme() }
+        }
+        settingSwitch = true
+        blackSwitch.isChecked = prefs.pureBlack
+        settingSwitch = false
+
+        sectionLabel(settingsPage, "SAVED READS")
+        g = group(settingsPage)
+        val autoRow = settingsRow(g, "Save long reads automatically", "Documents, books, articles and long text", chevron = false)
+        val autoSwitch = switchOn(autoRow.first) { on -> prefs.autoSave = on }
+        settingSwitch = true
+        autoSwitch.isChecked = prefs.autoSave
+        settingSwitch = false
+        divider(g)
+        val clearSavedRow = settingsRow(g, "Clear Saved Reads", savedReadsText())
+        clearSavedRow.first.setOnClickListener {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Clear Saved Reads?")
+                .setMessage("This removes every saved read and the spot you stopped at. Your files themselves aren't touched.")
+                .setPositiveButton("Clear") { _, _ ->
+                    if (ReadSession.savedId != null) ReadSession.savedId = null
+                    Saved.clear(this)
+                    savedStamp = -1L
+                    renderSaved()
+                    clearSavedRow.second.text = savedReadsText()
+                    toast("Saved Reads cleared.")
+                }
+                .setNegativeButton("Cancel", null)
                 .show()
         }
 
@@ -450,9 +509,10 @@ class MainActivity : Activity() {
             }
         }
 
-        val foot = label(settingsPage, "Lotus Aloud ${appVersion()}\n${Edition.TAGLINE}", 11f, color = Color.parseColor("#6D616F"), top = 18)
+        val foot = label(settingsPage, "Lotus Aloud ${appVersion()}\n${Edition.TAGLINE}", 11f, color = Look.dim, top = 18)
         foot.gravity = Gravity.CENTER
         refreshSwitches()
+        reopenTab?.let { selectTab(it); reopenTab = null }
 
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -467,11 +527,12 @@ class MainActivity : Activity() {
         refreshSwitches()
         if (!Edition.PLAY && intent?.getBooleanExtra(EXTRA_ASK_SCREENSHOTS, false) == true) {
             intent.removeExtra(EXTRA_ASK_SCREENSHOTS)
-            selectTab(2)
+            selectTab(3)
             askScreenshotAccess()
         }
         handler.post(poll)
         renderHistory()
+        renderSaved()
         if (waitingForOverlay) {
             waitingForOverlay = false
             if (BubbleService.canShow(this)) {
@@ -589,7 +650,7 @@ class MainActivity : Activity() {
         glow.background = GradientDrawable().apply {
             gradientType = GradientDrawable.RADIAL_GRADIENT
             gradientRadius = dp(80).toFloat()
-            colors = intArrayOf(Color.argb(120, 250, 30, 78), Color.argb(0, 250, 30, 78))
+            colors = intArrayOf(Look.accentA(120), Look.accentA(0))
         }
         hero.addView(glow, android.widget.FrameLayout.LayoutParams(dp(170), dp(170), Gravity.CENTER))
         val logo = android.widget.ImageView(this)
@@ -607,8 +668,8 @@ class MainActivity : Activity() {
             up.orientation = LinearLayout.VERTICAL
             up.background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
-                intArrayOf(Color.parseColor("#4A0F24"), Color.parseColor("#2A0E1B"), cardColor),
-            ).apply { cornerRadius = dp(22).toFloat(); setStroke(dp(1), Color.parseColor("#6A1830")) }
+                intArrayOf(Look.deep1, Look.deep2, cardColor),
+            ).apply { cornerRadius = dp(22).toFloat(); setStroke(dp(1), Look.edge) }
             up.setPadding(dp(18), dp(16), dp(18), dp(14))
             val upLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
             upLp.topMargin = dp(18)
@@ -640,14 +701,14 @@ class MainActivity : Activity() {
 
         val bottom = LinearLayout(this)
         bottom.setPadding(dp(18), dp(10), dp(18), dp(18))
-        bottom.setBackgroundColor(Color.parseColor("#0C080D"))
+        bottom.setBackgroundColor(Look.bar)
         val got = button(bottom, "Got it", 1f, primary = true) { dlg.dismiss() }
         got.minHeight = dp(50)
         root.addView(bottom, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         dlg.setContentView(root)
         dlg.window?.statusBarColor = bgColor
-        dlg.window?.navigationBarColor = Color.parseColor("#0C080D")
+        dlg.window?.navigationBarColor = Look.bar
         Insets.apply(this, root)
         dlg.show()
     }
@@ -655,7 +716,7 @@ class MainActivity : Activity() {
     private fun changeCard(parent: LinearLayout, e: Changelog.Entry, isNew: Boolean, latest: Boolean) {
         val c = LinearLayout(this)
         c.orientation = LinearLayout.VERTICAL
-        c.background = rounded(cardColor, 22, if (latest) Color.parseColor("#5A1A2E") else null)
+        c.background = rounded(cardColor, 22, if (latest) Look.edge else null)
         c.setPadding(dp(16), dp(14), dp(16), dp(14))
         val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         lp.topMargin = dp(12)
@@ -672,7 +733,7 @@ class MainActivity : Activity() {
         emoji.text = if (hasEmoji) lead else "\u2728"
         emoji.textSize = 18f
         emoji.gravity = Gravity.CENTER
-        emoji.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#34101E")) }
+        emoji.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Look.deep3) }
         head.addView(emoji, LinearLayout.LayoutParams(dp(40), dp(40)))
         val name = TextView(this)
         name.text = if (hasEmoji) e.title.substring(firstSpace + 1) else e.title
@@ -698,7 +759,7 @@ class MainActivity : Activity() {
             rlp.topMargin = dp(9)
             c.addView(row, rlp)
             val dot = View(this)
-            dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#FF6B8A")) }
+            dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Look.soft) }
             val dlp = LinearLayout.LayoutParams(dp(6), dp(6))
             dlp.topMargin = dp(8)
             dlp.marginStart = dp(4)
@@ -850,6 +911,174 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun savedReadsText(): String {
+        val n = Saved.list(this).size
+        val kb = Saved.bytes(this) / 1024
+        val size = if (kb >= 1024) "%.1f MB".format(kb / 1024.0) else "$kb KB"
+        return if (n == 0) "Nothing saved" else "$n saved \u00b7 $size"
+    }
+
+    /** The Saved Reads shelf. Only redraws when something changed. */
+    private fun renderSaved() {
+        if (!::savedBox.isInitialized) return
+        val stamp = Saved.stamp(this) + (ReadSession.savedId?.hashCode() ?: 0)
+        if (stamp == savedStamp) return
+        savedStamp = stamp
+        val items = Saved.list(this)
+        savedBox.removeAllViews()
+        if (items.isEmpty()) {
+            val empty = label(savedBox, "\uD83D\uDCDA\n\nNothing saved yet.\nOpen a PDF, Word file or EPUB book, share a webpage, or paste a long text, and it shows up here.", 14f, top = 30)
+            empty.gravity = Gravity.CENTER
+            return
+        }
+        val playing = ReadSession.savedId
+        sectionLabel(savedBox, if (items.size == 1) "1 SAVED READ" else "${items.size} SAVED READS")
+        for (item in items) savedCard(item, item.id == playing)
+    }
+
+    private fun savedCard(item: SavedRead, playing: Boolean) {
+        val c = LinearLayout(this)
+        c.orientation = LinearLayout.HORIZONTAL
+        c.gravity = Gravity.CENTER_VERTICAL
+        c.background = rounded(cardColor, 18, if (playing) Look.accentA(150) else null)
+        c.setPadding(dp(14), dp(12), dp(10), dp(12))
+        val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        lp.bottomMargin = dp(10)
+        savedBox.addView(c, lp)
+
+        val icon = TextView(this)
+        icon.text = item.icon
+        icon.textSize = 22f
+        icon.gravity = Gravity.CENTER
+        icon.background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(Look.deep3) }
+        c.addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)))
+
+        val mid = LinearLayout(this)
+        mid.orientation = LinearLayout.VERTICAL
+        mid.setPadding(dp(12), 0, dp(8), 0)
+        c.addView(mid, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        val title = label(mid, item.title, 15f, bold = true)
+        title.maxLines = 2
+        title.ellipsize = android.text.TextUtils.TruncateAt.END
+        val kind = when (item.kind) {
+            SavedRead.KIND_PDF -> "PDF"
+            SavedRead.KIND_WORD -> "Word"
+            SavedRead.KIND_BOOK -> "Book"
+            SavedRead.KIND_WEB -> "Article"
+            else -> "Text"
+        }
+        val mins = (item.chars / 900).coerceAtLeast(1)
+        val length = if (mins >= 60) "${mins / 60} h ${mins % 60} min" else "$mins min"
+        val ago = DateUtils.getRelativeTimeSpanString(item.opened, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)
+        val state = when {
+            playing -> "\u25B6 Playing \u00b7 ${item.percent}%"
+            item.done -> "\u2713 Finished"
+            item.percent > 0 -> "${item.percent}% read"
+            else -> "Not started"
+        }
+        label(mid, "$kind \u00b7 about $length \u00b7 $ago", 12f, top = 2)
+
+        val track = LinearLayout(this)
+        track.orientation = LinearLayout.HORIZONTAL
+        track.background = rounded(Look.raise, 99)
+        val tlp = LinearLayout.LayoutParams(MATCH_PARENT, dp(5))
+        tlp.topMargin = dp(8)
+        mid.addView(track, tlp)
+        val pct = item.percent.coerceIn(0, 100)
+        if (pct > 0) {
+            val fill = View(this)
+            fill.background = rounded(if (item.done) Color.parseColor("#2EA043") else accent, 99)
+            track.addView(fill, LinearLayout.LayoutParams(0, MATCH_PARENT, pct.toFloat()))
+        }
+        if (pct < 100) track.addView(View(this), LinearLayout.LayoutParams(0, MATCH_PARENT, (100 - pct).toFloat()))
+        label(mid, state, 12f, color = if (playing) Look.soft else null, top = 4)
+
+        playCircle(c, 46, true) {
+            if (playing && (player.snapshot().phase == Phase.PLAYING || player.snapshot().phase == Phase.PAUSED)) {
+                player.togglePause()
+            } else {
+                ReadService.readSaved(this, item.id)
+                if (item.resumeFrom > 0.0) toast("Continuing from ${item.percent}%")
+            }
+        }
+        c.setOnClickListener { savedOptions(item) }
+        c.setOnLongClickListener { savedOptions(item); true }
+    }
+
+    private fun savedOptions(item: SavedRead) {
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        if (item.resumeFrom > 0.0) actions.add("\u25B6  Continue from ${item.percent}%" to { ReadService.readSaved(this, item.id) })
+        actions.add((if (item.resumeFrom > 0.0) "\u21BA  Start over" else "\u25B6  Play from the start") to { ReadService.readSaved(this, item.id, fromStart = true) })
+        actions.add("\uD83D\uDCD6  Follow along" to {
+            if (ReadSession.savedId != item.id) ReadService.readSaved(this, item.id)
+            startActivity(Intent(this, ReaderActivity::class.java))
+        })
+        if (item.done || item.percent > 0) actions.add("\u2713  Mark as not started" to {
+            Saved.update(this, item.id) { it.copy(fraction = 0.0, done = false) }
+            renderSaved()
+        })
+        if (!item.done) actions.add("\u2713  Mark as finished" to {
+            Saved.update(this, item.id) { it.copy(fraction = 1.0, done = true) }
+            renderSaved()
+        })
+        actions.add("\u270F  Rename" to { renameSaved(item) })
+        actions.add("\uD83D\uDDD1  Remove" to {
+            if (ReadSession.savedId == item.id) ReadSession.savedId = null
+            Saved.remove(this, item.id)
+            renderSaved()
+            toast("Removed \u201c${item.title}\u201d.")
+        })
+        android.app.AlertDialog.Builder(this)
+            .setTitle(item.title)
+            .setItems(actions.map { it.first }.toTypedArray()) { _, i -> actions[i].second() }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun renameSaved(item: SavedRead) {
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.setPadding(dp(22), dp(8), dp(22), 0)
+        val name = edit(box, "Name", item.title)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Rename")
+            .setView(box)
+            .setPositiveButton("Save") { _, _ ->
+                val n = name.text.toString().trim()
+                if (n.isNotEmpty()) {
+                    Saved.update(this, item.id) { it.copy(title = n.take(120)) }
+                    renderSaved()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun pickTheme() {
+        val names = Look.THEMES.map { t ->
+            val sp = android.text.SpannableString("\u25CF  ${t.name}")
+            sp.setSpan(ForegroundColorSpan(t.accent), 0, 1, 0)
+            sp
+        }.toTypedArray<CharSequence>()
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Theme")
+            .setSingleChoiceItems(names, Look.index) { d, i ->
+                d.dismiss()
+                if (i != prefs.theme) {
+                    prefs.theme = i
+                    applyTheme()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun applyTheme() {
+        Look.load(prefs)
+        reopenTab = currentTab
+        recreate()
+    }
+
     private fun requestTile() {
         if (Build.VERSION.SDK_INT < 33) return
         val sbm = getSystemService(StatusBarManager::class.java) ?: return
@@ -883,8 +1112,8 @@ class MainActivity : Activity() {
         hero.setPadding(dp(14), dp(14), dp(14), dp(14))
         hero.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
-            intArrayOf(Color.parseColor("#4A0F24"), Color.parseColor("#2A0E1B"), cardColor),
-        ).apply { cornerRadius = dp(18).toFloat(); setStroke(dp(1), Color.argb(70, 250, 30, 78)) }
+            intArrayOf(Look.deep1, Look.deep2, cardColor),
+        ).apply { cornerRadius = dp(18).toFloat(); setStroke(dp(1), Look.accentA(70)) }
         mainVoiceBox.addView(hero, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         val heroId = mv?.id ?: Prefs.DEFAULT_VOICE
         avatar(hero, mv?.name ?: "Fish", heroId, 46)
@@ -916,7 +1145,7 @@ class MainActivity : Activity() {
             val star = TextView(this)
             star.text = if (v.id == main) "\u2605" else "\u2606"
             star.textSize = 21f
-            star.setTextColor(if (v.id == main) Color.parseColor("#FFC94A") else Color.parseColor("#6D616F"))
+            star.setTextColor(if (v.id == main) Color.parseColor("#FFC94A") else Look.dim)
             star.setPadding(dp(8), dp(4), dp(10), dp(4))
             star.setOnClickListener {
                 if (v.id != main) {
@@ -956,7 +1185,7 @@ class MainActivity : Activity() {
             gradientType = GradientDrawable.RADIAL_GRADIENT
             setGradientCenter(0.92f, 0f)
             gradientRadius = dp(230).toFloat()
-            colors = intArrayOf(Color.argb(60, 250, 30, 78), Color.argb(0, 250, 30, 78))
+            colors = intArrayOf(Look.accentA(60), Look.accentA(0))
         }
         val t = TextView(this)
         t.text = text
@@ -978,8 +1207,8 @@ class MainActivity : Activity() {
         c.setPadding(dp(20), dp(16), dp(16), dp(16))
         c.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
-            intArrayOf(Color.parseColor("#34101E"), cardColor, cardColor),
-        ).apply { cornerRadius = dp(24).toFloat(); setStroke(dp(1), Color.argb(64, 250, 30, 78)) }
+            intArrayOf(Look.deep3, cardColor, cardColor),
+        ).apply { cornerRadius = dp(24).toFloat(); setStroke(dp(1), Look.accentA(64)) }
         c.elevation = dp(6).toFloat()
         val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         lp.topMargin = dp(8)
@@ -990,7 +1219,7 @@ class MainActivity : Activity() {
         label(t, "Lotus Aloud", 17f, bold = true)
         val sub = label(t, "", 13f)
         chevron(c)
-        c.setOnClickListener { selectTab(1) }
+        c.setOnClickListener { selectTab(2) }
         return sub
     }
 
@@ -1001,7 +1230,7 @@ class MainActivity : Activity() {
         val txt = "Main voice  $name" + if (credit.isNotBlank()) "  \u00b7  $credit" else ""
         val sp = android.text.SpannableString(txt)
         val st = txt.indexOf(name)
-        sp.setSpan(ForegroundColorSpan(Color.parseColor("#FF6B8A")), st, st + name.length, 0)
+        sp.setSpan(ForegroundColorSpan(Look.soft), st, st + name.length, 0)
         summaryText.text = sp
     }
 
@@ -1009,7 +1238,7 @@ class MainActivity : Activity() {
         val ch = TextView(this)
         ch.text = "\u203A"
         ch.textSize = 22f
-        ch.setTextColor(Color.parseColor("#6D616F"))
+        ch.setTextColor(Look.dim)
         ch.setPadding(dp(8), 0, 0, 0)
         parent.addView(ch)
     }
@@ -1026,7 +1255,7 @@ class MainActivity : Activity() {
         t.orientation = LinearLayout.VERTICAL
         r.addView(t, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         label(t, title, 16f)
-        val subView = label(t, sub ?: "", 13f, color = if (valuePink) Color.parseColor("#FF6B8A") else null)
+        val subView = label(t, sub ?: "", 13f, color = if (valuePink) Look.soft else null)
         if (sub == null) subView.visibility = View.GONE
         if (chevron) chevron(r)
         return r to subView
@@ -1041,7 +1270,7 @@ class MainActivity : Activity() {
         val sw = android.widget.Switch(this)
         val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
         sw.thumbTintList = android.content.res.ColorStateList(states, intArrayOf(Color.WHITE, Color.WHITE))
-        sw.trackTintList = android.content.res.ColorStateList(states, intArrayOf(accent, Color.parseColor("#4A3F4C")))
+        sw.trackTintList = android.content.res.ColorStateList(states, intArrayOf(accent, Look.trackOff))
         sw.setOnCheckedChangeListener { _, on -> if (!settingSwitch) onChange(on) }
         row.addView(sw)
         row.setOnClickListener { sw.toggle() }
@@ -1054,7 +1283,7 @@ class MainActivity : Activity() {
         b.gravity = Gravity.CENTER
         b.textSize = 17f
         b.setTextColor(textColor)
-        b.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#2C2330")) }
+        b.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Look.raise) }
         b.setOnClickListener { onClick() }
         parent.addView(b, LinearLayout.LayoutParams(dp(32), dp(32)))
     }
@@ -1121,7 +1350,7 @@ class MainActivity : Activity() {
         t.textSize = 13f
         t.setTextColor(if (on) Color.WHITE else mutedColor)
         if (on) t.setTypeface(t.typeface, Typeface.BOLD)
-        t.background = rounded(if (on) accent else cardColor, 99, if (on) null else Color.parseColor("#2C2330"))
+        t.background = rounded(if (on) accent else cardColor, 99, if (on) null else Look.raise)
         t.setPadding(dp(14), dp(7), dp(14), dp(7))
         t.setOnClickListener { onClick() }
         val lp = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
@@ -1208,7 +1437,7 @@ class MainActivity : Activity() {
         if (items.isEmpty()) {
             b.setMessage(
                 "Teach Lotus Aloud how to say things it gets wrong.\n\n" +
-                    "For example:\n\u2022 LSS \u2192 L S S\n\u2022 OutBreak \u2192 Out Break\n\u2022 gif \u2192 jif\n\n" +
+                    "For example:\n\u2022 LSS \u2192 L S S\n\u2022 Nguyen \u2192 Win\n\u2022 gif \u2192 jif\n\n" +
                     "It works with every voice, and Follow along still shows the original word."
             )
         } else {
@@ -1395,7 +1624,7 @@ class MainActivity : Activity() {
         b.setTextColor(Color.WHITE)
         b.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(if (big) accent else Color.parseColor("#2C2330"))
+            setColor(if (big) accent else Look.raise)
         }
         b.setOnClickListener { onClick() }
         parent.addView(b, LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)))
@@ -1407,7 +1636,7 @@ class MainActivity : Activity() {
         t.textSize = 11f
         t.letterSpacing = 0.08f
         t.setTypeface(t.typeface, Typeface.BOLD)
-        t.setTextColor(Color.parseColor("#FF6B8A"))
+        t.setTextColor(Look.soft)
         t.setPadding(dp(14), dp(18), dp(4), dp(7))
         parent.addView(t, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
     }
@@ -1440,7 +1669,7 @@ class MainActivity : Activity() {
         r.setPadding(dp(14), dp(12), dp(14), dp(12))
         parent.addView(r, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         val dot = View(this)
-        dot.background = rounded(Color.parseColor("#6D616F"), 99)
+        dot.background = rounded(Look.dim, 99)
         r.addView(dot, LinearLayout.LayoutParams(dp(9), dp(9)))
         val t = LinearLayout(this)
         t.orientation = LinearLayout.VERTICAL
@@ -1452,7 +1681,7 @@ class MainActivity : Activity() {
         val chev = TextView(this)
         chev.text = "\u203A"
         chev.textSize = 20f
-        chev.setTextColor(Color.parseColor("#6D616F"))
+        chev.setTextColor(Look.dim)
         r.addView(chev)
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
@@ -1471,7 +1700,7 @@ class MainActivity : Activity() {
         if (!::fishStatus.isInitialized) return
         for ((status, has) in listOf(fishStatus to prefs.apiKey.isNotBlank(), elevenStatus to prefs.elevenKey.isNotBlank())) {
             status.text = if (has) "Connected" else "Not set up \u00b7 tap to add key"
-            (status.tag as? View)?.background = rounded(Color.parseColor(if (has) "#2EA043" else "#6D616F"), 99)
+            (status.tag as? View)?.background = rounded((if (has) Color.parseColor("#2EA043") else Look.dim), 99)
         }
     }
 
@@ -1506,7 +1735,7 @@ class MainActivity : Activity() {
         saveKey()
         if (prefs.hasKeyFor(voiceId)) return true
         toast(if (Providers.of(voiceId) == Providers.ELEVEN) "Paste your ElevenLabs key first." else "Paste your Fish Audio key first.")
-        selectTab(1)
+        selectTab(2)
         val eleven = Providers.of(voiceId) == Providers.ELEVEN
         (if (eleven) elevenKeyBox else fishKeyBox).visibility = View.VISIBLE
         (if (eleven) elevenKeyEdit else apiKeyEdit).requestFocus()
@@ -1516,13 +1745,13 @@ class MainActivity : Activity() {
     private fun buildTabBar(parent: LinearLayout) {
         val bar = LinearLayout(this)
         bar.orientation = LinearLayout.HORIZONTAL
-        bar.setBackgroundColor(Color.parseColor("#0C080D"))
+        bar.setBackgroundColor(Look.bar)
         bar.setPadding(0, dp(6), 0, dp(10))
         val line = View(this)
-        line.setBackgroundColor(Color.parseColor("#2A2230"))
+        line.setBackgroundColor(Look.line)
         parent.addView(line, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)))
         parent.addView(bar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        listOf("\uD83E\uDEB7\nPlayer", "\uD83C\uDF99\nVoices", "\u2699\nSettings").forEachIndexed { i, t ->
+        listOf("\uD83E\uDEB7\nPlayer", "\uD83D\uDCDA\nSaved", "\uD83C\uDF99\nVoices", "\u2699\nSettings").forEachIndexed { i, t ->
             val tab = TextView(this)
             tab.text = t
             tab.gravity = Gravity.CENTER
@@ -1536,11 +1765,13 @@ class MainActivity : Activity() {
     }
 
     private fun selectTab(i: Int) {
+        currentTab = i
+        if (i == 1) renderSaved()
         if (::topBar.isInitialized) topBar.visibility = if (i == 0) View.VISIBLE else View.GONE
         pages.forEachIndexed { n, p -> p.visibility = if (n == i) View.VISIBLE else View.GONE }
         tabs.forEachIndexed { n, t ->
             val on = n == i
-            t.setTextColor(if (on) Color.parseColor("#FF6B8A") else mutedColor)
+            t.setTextColor(if (on) Look.soft else mutedColor)
             t.setTypeface(null, if (on) Typeface.BOLD else Typeface.NORMAL)
         }
     }
@@ -1702,7 +1933,7 @@ class MainActivity : Activity() {
         b.isAllCaps = false
         b.textSize = 14f
         b.setTextColor(if (primary) Color.WHITE else textColor)
-        b.background = rounded(if (primary) accent else Color.parseColor("#2C2330"), 12)
+        b.background = rounded(if (primary) accent else Look.raise, 12)
         b.stateListAnimator = null
         b.minHeight = dp(44)
         b.minimumHeight = dp(44)
@@ -1722,7 +1953,7 @@ class MainActivity : Activity() {
         e.setSingleLine(true)
         e.setTextColor(textColor)
         e.setHintTextColor(mutedColor)
-        e.background = rounded(fieldColor, 12, Color.parseColor("#3A2F3D"))
+        e.background = rounded(fieldColor, 12, Look.fieldEdge)
         e.setPadding(dp(12), dp(10), dp(12), dp(10))
         val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         lp.topMargin = dp(6)

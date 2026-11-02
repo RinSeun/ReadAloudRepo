@@ -52,6 +52,16 @@ class Prefs(context: Context) {
     val recentLangs: List<String>
         get() = (sp.getString("recentLangs", "") ?: "").split(",").filter { it.isNotBlank() }
 
+    var theme: Int
+        get() = sp.getInt("theme", 0)
+        set(v) { sp.edit().putInt("theme", v).apply() }
+    var pureBlack: Boolean
+        get() = sp.getBoolean("pureBlack", false)
+        set(v) { sp.edit().putBoolean("pureBlack", v).apply() }
+    var autoSave: Boolean
+        get() = sp.getBoolean("autoSave", true)
+        set(v) { sp.edit().putBoolean("autoSave", v).apply() }
+
     var smartSkip: Boolean
         get() = sp.getBoolean("smartSkip", true)
         set(v) { sp.edit().putBoolean("smartSkip", v).apply() }

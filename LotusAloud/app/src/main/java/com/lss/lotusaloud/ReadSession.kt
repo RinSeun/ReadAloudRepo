@@ -11,6 +11,9 @@ object ReadSession {
 
     @Volatile var pendingFraction: Double? = null
 
+    /** The Saved Read being played (its spot is remembered), or null. */
+    @Volatile var savedId: String? = null
+
     @Volatile var version: Int = 0
 
     val count get() = parts.size

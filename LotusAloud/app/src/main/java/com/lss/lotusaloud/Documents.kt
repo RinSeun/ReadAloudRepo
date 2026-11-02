@@ -22,14 +22,16 @@ object Documents {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "text/plain",
         "text/markdown",
+        "application/epub+zip",
     )
 
-    class Doc(val title: String, val text: String)
+    class Doc(val title: String, val text: String, val kind: String = SavedRead.KIND_TEXT)
 
     fun isDocument(mime: String?, name: String?): Boolean {
         val m = mime ?: ""
         val n = (name ?: "").lowercase()
         return m == "application/pdf" || m.contains("wordprocessingml") || m.startsWith("text/") ||
+            m.contains("epub") || n.endsWith(".epub") ||
             n.endsWith(".pdf") || n.endsWith(".docx") || n.endsWith(".txt") || n.endsWith(".md")
     }
 
@@ -45,14 +47,24 @@ object Documents {
         val file = File(path)
         try {
             val n = (name ?: "").lowercase()
-            val title = (name ?: "Document").substringBeforeLast('.')
+            var title = (name ?: "Document").substringBeforeLast('.')
+            val isPdf = mime == "application/pdf" || n.endsWith(".pdf") || looksLikePdf(file)
+            val isEpub = !isPdf && ((mime ?: "").contains("epub") || n.endsWith(".epub") || (looksLikeZip(file) && isEpubZip(file)))
+            val isWord = !isPdf && !isEpub && ((mime ?: "").contains("wordprocessingml") || n.endsWith(".docx") || looksLikeZip(file))
             val text = when {
-                mime == "application/pdf" || n.endsWith(".pdf") || looksLikePdf(file) -> pdf(ctx, file, progress)
-                (mime ?: "").contains("wordprocessingml") || n.endsWith(".docx") || looksLikeZip(file) -> docx(file)
+                isPdf -> pdf(ctx, file, progress)
+                isEpub -> epub(file, progress).also { (t, _) -> if (!t.isNullOrBlank()) title = t }.second
+                isWord -> docx(file)
                 else -> file.readText(Charsets.UTF_8)
             }
             if (text.isBlank()) throw ProviderError("Couldn't find any text in that document.")
-            return Doc(title, text)
+            val kind = when {
+                isPdf -> SavedRead.KIND_PDF
+                isEpub -> SavedRead.KIND_BOOK
+                isWord -> SavedRead.KIND_WORD
+                else -> SavedRead.KIND_TEXT
+            }
+            return Doc(title, text, kind)
         } finally {
             file.delete()
         }
@@ -89,6 +101,84 @@ object Documents {
                 }
             }.trim()
         }.filter { it.isNotEmpty() }.joinToString("\n\n")
+    }
+
+    private fun isEpubZip(f: File): Boolean = try {
+        ZipFile(f).use { it.getEntry("META-INF/container.xml") != null }
+    } catch (e: Exception) { false }
+
+    private val OPF_PATH = Regex("full-path=\"([^\"]+)\"")
+    private val DC_TITLE = Regex("<dc:title[^>]*>([^<]+)</dc:title>")
+    private val MANIFEST_ITEM = Regex("<item\\s[^>]*>")
+    private val SPINE_REF = Regex("<itemref\\s[^>]*idref=\"([^\"]+)\"")
+    private fun attr(tag: String, name: String) = Regex("\\s$name=\"([^\"]*)\"").find(tag)?.groupValues?.get(1)
+
+    /** EPUB books (without DRM): the chapters in reading order. Returns (book title, text). */
+    private fun epub(file: File, progress: (Int, Int) -> Unit): Pair<String?, String> {
+        try {
+            ZipFile(file).use { zip ->
+                fun read(path: String) = zip.getEntry(path)?.let { e -> zip.getInputStream(e).bufferedReader(Charsets.UTF_8).use { it.readText() } }
+                val container = read("META-INF/container.xml") ?: throw ProviderError("That book looks empty.")
+                val opfPath = OPF_PATH.find(container)?.groupValues?.get(1) ?: throw ProviderError("Couldn't open that book.")
+                val opf = read(opfPath) ?: throw ProviderError("Couldn't open that book.")
+                if (zip.getEntry("META-INF/encryption.xml") != null && zip.getEntry("META-INF/rights.xml") != null) {
+                    throw ProviderError("That book is copy-protected (DRM), so it can't be read aloud.")
+                }
+                val base = opfPath.substringBeforeLast('/', "").let { if (it.isEmpty()) "" else "$it/" }
+                val title = DC_TITLE.find(opf)?.groupValues?.get(1)?.let { unescape(it).trim() }
+                val hrefs = HashMap<String, String>()
+                MANIFEST_ITEM.findAll(opf).forEach { m ->
+                    val id = attr(m.value, "id")
+                    val href = attr(m.value, "href")
+                    if (id != null && href != null) hrefs[id] = href
+                }
+                val order = SPINE_REF.findAll(opf).mapNotNull { hrefs[it.groupValues[1]] }.toList()
+                val chapters = ArrayList<String>()
+                order.forEachIndexed { i, href ->
+                    progress(i + 1, order.size)
+                    val path = normalize(base + java.net.URLDecoder.decode(href.substringBefore('#'), "UTF-8"))
+                    val html = read(path) ?: return@forEachIndexed
+                    val text = htmlText(html)
+                    if (text.isNotBlank()) chapters.add(text)
+                }
+                return title to chapters.joinToString("\n\n")
+            }
+        } catch (e: ProviderError) {
+            throw e
+        } catch (e: Exception) {
+            throw ProviderError("Couldn't open that book.")
+        }
+    }
+
+    private fun normalize(path: String): String {
+        val out = ArrayList<String>()
+        path.split('/').forEach { seg ->
+            when (seg) {
+                "", "." -> {}
+                ".." -> if (out.isNotEmpty()) out.removeAt(out.size - 1)
+                else -> out.add(seg)
+            }
+        }
+        return out.joinToString("/")
+    }
+
+    private val DROP_BLOCKS = Regex("(?is)<(head|script|style|nav)[^>]*>.*?</\\1>")
+    private val BLOCK_END = Regex("(?i)</(p|div|h[1-6]|li|blockquote|section|tr)>|<br\\s*/?>")
+    private val TAG = Regex("<[^>]+>")
+    private val NUM_ENTITY = Regex("&#(x?)([0-9a-fA-F]+);")
+
+    private fun htmlText(html: String): String {
+        var t = DROP_BLOCKS.replace(html, " ")
+        t = BLOCK_END.replace(t, "\n\n")
+        t = TAG.replace(t, "")
+        t = NUM_ENTITY.replace(t) { m ->
+            val code = m.groupValues[2].toIntOrNull(if (m.groupValues[1].isEmpty()) 10 else 16)
+            if (code != null && code in 1..0x10FFFF) String(Character.toChars(code)) else " "
+        }
+        t = unescape(t.replace("&nbsp;", " ").replace("&mdash;", "\u2014").replace("&ndash;", "\u2013")
+            .replace("&rsquo;", "\u2019").replace("&lsquo;", "\u2018").replace("&rdquo;", "\u201d").replace("&ldquo;", "\u201c")
+            .replace("&hellip;", "\u2026"))
+        return t.split(Regex("\\n\\s*\\n")).map { it.replace(Regex("\\s+"), " ").trim() }.filter { it.isNotEmpty() }.joinToString("\n\n")
     }
 
     private fun unescape(s: String) = s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")

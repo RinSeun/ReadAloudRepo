@@ -27,11 +27,11 @@ import android.widget.TextView
 import com.lss.lotusaloud.SpeechPlayer.Phase
 
 class ReaderActivity : Activity() {
-    private val accent = Color.parseColor("#FA1E4E")
-    private val bgColor = Color.parseColor("#120E14")
-    private val cardColor = Color.parseColor("#1E1820")
-    private val textColor = Color.parseColor("#F3EDF2")
-    private val dimColor = Color.parseColor("#8E8290")
+    private val accent: Int get() = Look.accent
+    private val bgColor: Int get() = Look.bg
+    private val cardColor: Int get() = Look.card
+    private val textColor: Int get() = Look.text
+    private val dimColor: Int get() = Look.faint
     private val handler = Handler(Looper.getMainLooper())
     private val player get() = SpeechPlayer.shared
 
@@ -61,6 +61,8 @@ class ReaderActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Look.load(Prefs(this))
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Look.bg))
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
         root.setBackgroundColor(bgColor)
@@ -239,7 +241,7 @@ class ReaderActivity : Activity() {
         }
         val sen = sentences.getOrNull(current) ?: return
         text.setSpan(ForegroundColorSpan(Color.WHITE), sen.start, sen.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        text.setSpan(BackgroundColorSpan(Color.argb(90, 250, 30, 78)), sen.start, sen.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(BackgroundColorSpan(Look.accentA(90)), sen.start, sen.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         text.setSpan(StyleSpan(Typeface.BOLD), sen.start, sen.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
 
@@ -268,7 +270,7 @@ class ReaderActivity : Activity() {
         b.background = GradientDrawable().apply {
             shape = if (big) GradientDrawable.OVAL else GradientDrawable.RECTANGLE
             cornerRadius = dp(14f)
-            setColor(if (big) accent else Color.parseColor("#2C2330"))
+            setColor(if (big) accent else Look.raise)
         }
         b.setOnClickListener { onClick() }
         val size = if (big) dp(64) else WRAP_CONTENT
