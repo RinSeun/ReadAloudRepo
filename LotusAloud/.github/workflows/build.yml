@@ -22,15 +22,23 @@ jobs:
           cd "$DIR"
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
-          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/LotusAloud.apk"
+          ./gradlew assemblePersonalRelease bundlePlayRelease assemblePlayRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/personal/release/app-personal-release.apk "$GITHUB_WORKSPACE/LotusAloud.apk"
+          cp app/build/outputs/bundle/playRelease/app-play-release.aab "$GITHUB_WORKSPACE/LotusAloud-Play.aab"
+          cp app/build/outputs/apk/play/release/app-play-release.apk "$GITHUB_WORKSPACE/LotusAloud-Play-test.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: LotusAloud-apk
-          path: LotusAloud.apk
+          path: |
+            LotusAloud.apk
+            LotusAloud-Play.aab
+            LotusAloud-Play-test.apk
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: Lotus Aloud 1.0.${{ github.run_number }}
-          files: LotusAloud.apk
+          files: |
+            LotusAloud.apk
+            LotusAloud-Play.aab
+            LotusAloud-Play-test.apk
           make_latest: true

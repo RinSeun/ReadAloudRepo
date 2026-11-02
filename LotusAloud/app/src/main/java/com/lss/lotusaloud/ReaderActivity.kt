@@ -65,6 +65,7 @@ class ReaderActivity : Activity() {
         root.orientation = LinearLayout.VERTICAL
         root.setBackgroundColor(bgColor)
         setContentView(root)
+        Insets.apply(this, root)
 
         val top = LinearLayout(this)
         top.orientation = LinearLayout.HORIZONTAL
@@ -81,6 +82,7 @@ class ReaderActivity : Activity() {
         titleView.maxLines = 2
         titleView.setPadding(dp(12), 0, dp(8), 0)
         top.addView(titleView, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        if (Edition.PLAY) smallButton(top, "\u2691") { Report.show(this) }
         followBtn = smallButton(top, "Following") {
             follow = !follow
             followBtn.text = if (follow) "Following" else "Follow"

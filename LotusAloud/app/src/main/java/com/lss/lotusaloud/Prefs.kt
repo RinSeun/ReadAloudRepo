@@ -35,7 +35,7 @@ class Prefs(context: Context) {
 
     var voices: List<Voice>
         get() {
-            val raw = sp.getString("voices", null) ?: return listOf(Voice("My voice", DEFAULT_VOICE))
+            val raw = sp.getString("voices", null) ?: return listOf(Voice(Edition.DEFAULT_VOICE_NAME, DEFAULT_VOICE))
             return try {
                 val arr = JSONArray(raw)
                 (0 until arr.length()).map { i ->
@@ -43,7 +43,7 @@ class Prefs(context: Context) {
                     Voice(o.optString("name", "Voice ${i + 1}"), o.optString("id"))
                 }.filter { it.id.isNotBlank() }
             } catch (e: Exception) {
-                listOf(Voice("My voice", DEFAULT_VOICE))
+                listOf(Voice(Edition.DEFAULT_VOICE_NAME, DEFAULT_VOICE))
             }
         }
         set(list) {
@@ -88,7 +88,7 @@ class Prefs(context: Context) {
 
     companion object {
         const val RELEASES_URL = "https://github.com/RinSeun/ReadAloudRepo/releases"
-        const val DEFAULT_VOICE = "19beff0760174a6e92a34eafbfbeada7"
+        val DEFAULT_VOICE: String get() = Edition.DEFAULT_VOICE
         const val DEFAULT_MODEL = "s2.1-pro"
         val MODELS = listOf("s2.1-pro", "s2.1-pro-free", "s2-pro", "s1")
 

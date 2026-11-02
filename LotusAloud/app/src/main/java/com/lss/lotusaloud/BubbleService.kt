@@ -251,6 +251,10 @@ class BubbleService : Service() {
     }
 
     private fun readLatestScreenshot() {
+        if (Edition.PLAY) {
+            startActivity(Intent(this, PickImageActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
         if (!Screenshots.canRead(this)) {
             Toast.makeText(this, "Allow photo access in Lotus Aloud to read screenshots.", Toast.LENGTH_LONG).show()
             startActivity(

@@ -14,7 +14,7 @@ object Screenshots {
         else Manifest.permission.READ_EXTERNAL_STORAGE
 
     fun canRead(ctx: Context): Boolean =
-        ctx.checkSelfPermission(permission()) == PackageManager.PERMISSION_GRANTED
+        !Edition.PLAY && ctx.checkSelfPermission(permission()) == PackageManager.PERMISSION_GRANTED
 
     fun latest(ctx: Context): Uri? {
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI

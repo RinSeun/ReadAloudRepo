@@ -376,7 +376,7 @@ class ReadService : Service() {
             lastDuration = duration
             val md = MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, title)
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, "Lotus Aloud · Made for LSS Only")
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, "Lotus Aloud · ${Edition.TAGLINE}")
             if (duration > 0) md.putLong(MediaMetadata.METADATA_KEY_DURATION, (duration * 1000).toLong())
             session.setMetadata(md.build())
         }
@@ -440,7 +440,7 @@ class ReadService : Service() {
             .setSmallIcon(smallIcon)
             .setContentTitle(if (s.phase == Phase.PLAYING || s.phase == Phase.PAUSED) title else head)
             .setContentText(if (s.phase == Phase.PLAYING || s.phase == Phase.PAUSED) "$head · $text" else text)
-            .setSubText("Made for LSS Only")
+            .setSubText(Edition.TAGLINE)
             .setContentIntent(openAppIntent())
             .setOnlyAlertOnce(true)
             .setShowWhen(false)

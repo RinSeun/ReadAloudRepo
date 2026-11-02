@@ -103,6 +103,7 @@ class MainActivity : Activity() {
         outer.orientation = LinearLayout.VERTICAL
         outer.setBackgroundColor(bgColor)
         setContentView(outer)
+        Insets.apply(this, outer)
         topBar = LinearLayout(this)
         topBar.orientation = LinearLayout.VERTICAL
         topBar.setPadding(dp(16), dp(26), dp(16), dp(4))
@@ -128,7 +129,7 @@ class MainActivity : Activity() {
         titles.orientation = LinearLayout.VERTICAL
         header.addView(titles, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         label(titles, "Lotus Aloud", 26f, bold = true)
-        label(titles, "MADE FOR LSS ONLY", 11f, bold = true, color = accent)
+        label(titles, Edition.TAGLINE.uppercase(), 11f, bold = true, color = accent)
         val newPill = TextView(this)
         newPill.text = "\u2728 New"
         newPill.textSize = 13f
@@ -175,7 +176,9 @@ class MainActivity : Activity() {
         pauseBtn = button(controls, "Pause", 1f) { player.togglePause() }
         button(controls, "10s ⏩", 1f) { player.skip(10.0) }
         stopBtn = button(controls, "Stop", 1f) { player.stop() }
-        button(row(cur), "\uD83D\uDCD6 Follow along", 1f) { startActivity(Intent(this, ReaderActivity::class.java)) }
+        val followRow = row(cur)
+        button(followRow, "\uD83D\uDCD6 Follow along", 1f) { startActivity(Intent(this, ReaderActivity::class.java)) }
+        if (Edition.PLAY) button(followRow, "\u2691 Report") { Report.show(this) }
 
         cur = card(playerPage, "Read text")
         val paste = edit(cur, "Paste or type text here")
@@ -358,10 +361,11 @@ class MainActivity : Activity() {
         val bubbleRow = settingsRow(g, "Lotus bubble", "Tap it to read copied text", chevron = false)
         bubbleSwitch = switchOn(bubbleRow.first) { on -> if (on != (prefs.bubbleOn && BubbleService.canShow(this))) toggleBubble() }
         divider(g)
-        val shotsRow = settingsRow(g, "Screenshot double-tap", "Bubble reads your latest one", chevron = false)
+        val shotsRow = settingsRow(g, "Screenshot double-tap",
+            if (Edition.PLAY) "Bubble opens your photos to pick one" else "Bubble reads your latest one", chevron = false)
         shotsSwitch = switchOn(shotsRow.first) { on ->
             prefs.shotsOn = on
-            if (on && !Screenshots.canRead(this)) askScreenshotAccess()
+            if (on && !Edition.PLAY && !Screenshots.canRead(this)) askScreenshotAccess()
         }
         divider(g)
         val tileRow = settingsRow(g, "Quick Settings tile", "Swipe down \u2192 Lotus Read")
@@ -379,8 +383,18 @@ class MainActivity : Activity() {
         }
         divider(g)
         settingsRow(g, "What's new", null).first.setOnClickListener { showWhatsNew() }
+        if (Edition.PLAY) {
+            divider(g)
+            settingsRow(g, "Report a problem with audio", "Offensive, misleading or broken").first.setOnClickListener { Report.show(this) }
+            if (Edition.PRIVACY_URL.isNotBlank()) {
+                divider(g)
+                settingsRow(g, "Privacy policy", null).first.setOnClickListener {
+                    try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Edition.PRIVACY_URL))) } catch (e: Exception) {}
+                }
+            }
+        }
 
-        val foot = label(settingsPage, "Lotus Aloud ${appVersion()}\nMade for LSS Only", 11f, color = Color.parseColor("#6D616F"), top = 18)
+        val foot = label(settingsPage, "Lotus Aloud ${appVersion()}\n${Edition.TAGLINE}", 11f, color = Color.parseColor("#6D616F"), top = 18)
         foot.gravity = Gravity.CENTER
         refreshSwitches()
 
@@ -395,7 +409,7 @@ class MainActivity : Activity() {
         super.onResume()
         Providers.warmUp(this)
         refreshSwitches()
-        if (intent?.getBooleanExtra(EXTRA_ASK_SCREENSHOTS, false) == true) {
+        if (!Edition.PLAY && intent?.getBooleanExtra(EXTRA_ASK_SCREENSHOTS, false) == true) {
             intent.removeExtra(EXTRA_ASK_SCREENSHOTS)
             selectTab(2)
             askScreenshotAccess()
@@ -500,14 +514,16 @@ class MainActivity : Activity() {
         body.setPadding(dp(22), dp(8), dp(22), dp(8))
         val scroll = ScrollView(this)
         scroll.addView(body)
-        android.app.AlertDialog.Builder(this)
+        val dlg = android.app.AlertDialog.Builder(this)
             .setTitle("What's new in Lotus Aloud")
             .setView(scroll)
             .setPositiveButton("Got it", null)
-            .setNeutralButton("Get latest version") { _, _ ->
+        if (!Edition.PLAY) {
+            dlg.setNeutralButton("Get latest version") { _, _ ->
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Prefs.RELEASES_URL)))
             }
-            .show()
+        }
+        dlg.show()
     }
 
     override fun onPause() {
@@ -614,7 +630,7 @@ class MainActivity : Activity() {
         if (::bubbleSwitch.isInitialized) {
             settingSwitch = true
             bubbleSwitch.isChecked = prefs.bubbleOn && BubbleService.canShow(this)
-            shotsSwitch.isChecked = prefs.shotsOn && Screenshots.canRead(this)
+            shotsSwitch.isChecked = prefs.shotsOn && (Edition.PLAY || Screenshots.canRead(this))
             settingSwitch = false
         }
     }
