@@ -15,6 +15,11 @@ android {
         targetSdk = 34
         versionCode = buildNumber
         versionName = "1.0.$buildNumber"
+        buildConfigField("boolean", "PLAY", "false")
+        buildConfigField("String", "DEFAULT_VOICE", "\"phone:\"")
+        buildConfigField("String", "SUPPORT_EMAIL", "\"\"")
+        buildConfigField("String", "PRIVACY_URL", "\"\"")
+        buildConfigField("String", "REPORT_WEBHOOK", "\"\"")
     }
 
     signingConfigs {
@@ -24,47 +29,19 @@ android {
             keyAlias = "fishreader"
             keyPassword = "fishreader"
         }
-        create("play") {
-            storeFile = file("lotusaloud-play.keystore")
-            storePassword = "lotusaloud-lss"
-            keyAlias = "lotusaloud"
-            keyPassword = "lotusaloud-lss"
-        }
     }
 
     buildFeatures {
         buildConfig = true
     }
 
-    flavorDimensions += "edition"
-    productFlavors {
-        create("personal") {
-            dimension = "edition"
-            applicationId = "com.lss.fishreader"
-            targetSdk = 34
-            signingConfig = signingConfigs.getByName("release")
-            buildConfigField("boolean", "PLAY", "false")
-            buildConfigField("String", "DEFAULT_VOICE", "\"phone:\"")
-            buildConfigField("String", "SUPPORT_EMAIL", "\"\"")
-            buildConfigField("String", "PRIVACY_URL", "\"\"")
-            buildConfigField("String", "REPORT_WEBHOOK", "\"\"")
-        }
-        create("play") {
-            dimension = "edition"
-            applicationId = "com.lotusshield.lotusaloud"
-            targetSdk = 35
-            signingConfig = signingConfigs.getByName("play")
-            buildConfigField("boolean", "PLAY", "true")
-            buildConfigField("String", "DEFAULT_VOICE", "\"phone:\"")
-            buildConfigField("String", "SUPPORT_EMAIL", "\"${project.findProperty("lotusSupportEmail") ?: ""}\"")
-            buildConfigField("String", "PRIVACY_URL", "\"${project.findProperty("lotusPrivacyUrl") ?: ""}\"")
-            buildConfigField("String", "REPORT_WEBHOOK", "\"${project.findProperty("lotusReportWebhook") ?: ""}\"")
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
