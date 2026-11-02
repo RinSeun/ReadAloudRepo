@@ -24,13 +24,13 @@ data class SavedRead(
 ) {
     val percent get() = if (done) 100 else (fraction * 100).toInt().coerceIn(0, 99)
     val resumeFrom get() = if (done || fraction < 0.01) 0.0 else fraction
-    val icon
+    val badge
         get() = when (kind) {
-            KIND_PDF -> "📕"
-            KIND_WORD -> "📘"
-            KIND_BOOK -> "📖"
-            KIND_WEB -> "🌐"
-            else -> "📝"
+            KIND_PDF -> "PDF"
+            KIND_WORD -> "WORD"
+            KIND_BOOK -> "BOOK"
+            KIND_WEB -> "WEB"
+            else -> "TEXT"
         }
 
     companion object {

@@ -142,7 +142,7 @@ class MainActivity : Activity() {
         label(titles, "Lotus Aloud", 26f, bold = true)
         label(titles, Edition.TAGLINE.uppercase(), 11f, bold = true, color = accent)
         val newPill = TextView(this)
-        newPill.text = "\u2728 New"
+        newPill.text = "New"
         newPill.textSize = 13f
         newPill.setTextColor(Color.WHITE)
         newPill.setTypeface(newPill.typeface, Typeface.BOLD)
@@ -197,13 +197,13 @@ class MainActivity : Activity() {
         cur = card(playerPage, "Now playing")
         statusText = label(cur, "Idle", 15f)
         val controls = row(cur)
-        button(controls, "⏪ 10s", 1f) { player.skip(-10.0) }
+        button(controls, "\u221210s", 1f) { player.skip(-10.0) }
         pauseBtn = button(controls, "Pause", 1f) { player.togglePause() }
-        button(controls, "10s ⏩", 1f) { player.skip(10.0) }
+        button(controls, "+10s", 1f) { player.skip(10.0) }
         stopBtn = button(controls, "Stop", 1f) { player.stop() }
         val followRow = row(cur)
-        button(followRow, "\uD83D\uDCD6 Follow along", 1f) { startActivity(Intent(this, ReaderActivity::class.java)) }
-        if (Edition.PLAY) button(followRow, "\u2691 Report") { Report.show(this) }
+        button(followRow, "Follow along", 1f) { startActivity(Intent(this, ReaderActivity::class.java)) }
+        if (Edition.PLAY) button(followRow, "Report") { Report.show(this) }
 
         cur = card(playerPage, "Read text")
         val paste = edit(cur, "Paste or type text here")
@@ -214,8 +214,8 @@ class MainActivity : Activity() {
         button(row(cur), "Read this", 1f, primary = true) {
             if (requireKey()) ReadService.read(this, paste.text.toString())
         }
-        button(row(cur), "\uD83D\uDCF7 Read a screenshot or photo", 1f) { pickImage() }
-        button(row(cur), "\uD83D\uDCC4 Read a document (PDF, Word, EPUB)", 1f) { pickDocument() }
+        button(row(cur), "Read a screenshot or photo", 1f) { pickImage() }
+        button(row(cur), "Read a document (PDF, Word, EPUB)", 1f) { pickDocument() }
         label(
             cur,
             "Paste a webpage link to hear the article. Or take a screenshot \u2192 Share \u2192 Lotus Aloud.",
@@ -223,7 +223,7 @@ class MainActivity : Activity() {
         )
 
         cur = card(playerPage, "Recent reads")
-        label(cur, "Tap ▶ to hear one again. Replays are instant and free.", 13f)
+        label(cur, "Tap Play to hear one again. Replays are instant and free.", 13f)
         historyBox = LinearLayout(this)
         historyBox.orientation = LinearLayout.VERTICAL
         cur.addView(historyBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
@@ -236,7 +236,7 @@ class MainActivity : Activity() {
                 "Only the text is kept on your phone, not the audio.",
             13f, top = 2,
         ).setPadding(dp(10), 0, dp(10), 0)
-        button(row(savedPage, 12), "\uD83D\uDCC4  Add a document (PDF, Word, EPUB)", 1f, primary = true) { pickDocument() }
+        button(row(savedPage, 12), "Add a document (PDF, Word, EPUB)", 1f, primary = true) { pickDocument() }
         savedBox = LinearLayout(this)
         savedBox.orientation = LinearLayout.VERTICAL
         savedPage.addView(savedBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
@@ -247,7 +247,7 @@ class MainActivity : Activity() {
         mainVoiceBox = LinearLayout(this)
         mainVoiceBox.orientation = LinearLayout.VERTICAL
         voicesPage.addView(mainVoiceBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        sectionLabel(voicesPage, "ALL VOICES \u00b7 TAP \u2605 TO MAKE MAIN")
+        sectionLabel(voicesPage, "ALL VOICES")
         voicesBox = group(voicesPage)
         renderVoices()
 
@@ -471,7 +471,7 @@ class MainActivity : Activity() {
         val tileRow = settingsRow(g, "Quick Settings tile", "Swipe down \u2192 Lotus Read")
         tileRow.first.setOnClickListener {
             if (Build.VERSION.SDK_INT >= 33) requestTile()
-            else toast("Swipe down twice, tap \u270e (edit), and drag \u201cLotus Read\u201d into your tiles.")
+            else toast("Swipe down twice, tap the pencil (edit), and drag \u201cLotus Read\u201d into your tiles.")
         }
 
         sectionLabel(settingsPage, "HELP")
@@ -561,18 +561,18 @@ class MainActivity : Activity() {
         val service = Providers.of(prefs.mainVoice)
         val left = Credit.elevenLeft
         val (text, color) = when {
-            service == Providers.PHONE -> "\uD83D\uDCF1 Phone voice \u00b7 free" to mutedColor
+            service == Providers.PHONE -> "Phone voice \u00b7 free" to mutedColor
             service == Providers.ELEVEN && prefs.elevenKey.isBlank() -> "Add your ElevenLabs key below" to mutedColor
             service == Providers.ELEVEN && creditText.isNotEmpty() -> creditText to creditColor
             service == Providers.ELEVEN && left == null -> "Checking ElevenLabs..." to mutedColor
             service == Providers.ELEVEN && left != null && left < 1000 ->
-                "\u26A0 ElevenLabs: only $left characters left" to Color.parseColor("#FFB020")
+                "ElevenLabs: only $left characters left" to Color.parseColor("#FFB020")
             service == Providers.ELEVEN -> "ElevenLabs: ${"%,d".format(left)} characters left" to mutedColor
             key.isBlank() -> "Add your Fish API key below" to mutedColor
-            prefs.model.contains("free") -> "\uD83C\uDF81 Free model \u00b7 no credit used" to mutedColor
+            prefs.model.contains("free") -> "Free model \u00b7 no credit used" to mutedColor
             creditText.isNotEmpty() -> creditText to creditColor
             v == null -> "Checking Fish credit..." to mutedColor
-            v < Credit.LOW -> "\u26A0 Fish credit low: ${Credit.format(v)} \u00b7 tap to refresh" to Color.parseColor("#FFB020")
+            v < Credit.LOW -> "Fish credit low: ${Credit.format(v)} \u00b7 tap to refresh" to Color.parseColor("#FFB020")
             else -> "Fish credit: ${Credit.format(v)}" to mutedColor
         }
         creditPill.text = text
@@ -635,24 +635,15 @@ class MainActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
 
         val close = TextView(this)
-        close.text = "\u2715"
-        close.textSize = 18f
-        close.setTextColor(mutedColor)
-        close.setPadding(dp(10), dp(10), dp(4), dp(4))
+        close.background = Glyph(Glyph.Kind.CLOSE, mutedColor, dp(16).toFloat())
+        val closeSize = dp(36)
         close.setOnClickListener { dlg.dismiss() }
         val closeRow = LinearLayout(this)
         closeRow.gravity = Gravity.END
-        closeRow.addView(close)
+        closeRow.addView(close, LinearLayout.LayoutParams(closeSize, closeSize))
         page.addView(closeRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val hero = android.widget.FrameLayout(this)
-        val glow = View(this)
-        glow.background = GradientDrawable().apply {
-            gradientType = GradientDrawable.RADIAL_GRADIENT
-            gradientRadius = dp(80).toFloat()
-            colors = intArrayOf(Look.accentA(120), Look.accentA(0))
-        }
-        hero.addView(glow, android.widget.FrameLayout.LayoutParams(dp(170), dp(170), Gravity.CENTER))
         val logo = android.widget.ImageView(this)
         logo.setImageResource(resources.getIdentifier("ic_lotus_hero", "drawable", packageName))
         hero.addView(logo, android.widget.FrameLayout.LayoutParams(dp(104), dp(104), Gravity.CENTER))
@@ -674,7 +665,7 @@ class MainActivity : Activity() {
             val upLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
             upLp.topMargin = dp(18)
             page.addView(up, upLp)
-            label(up, "\u2B07  Updates", 16f, bold = true, color = Color.WHITE)
+            label(up, "Updates", 16f, bold = true, color = Color.WHITE)
             label(up, "You're on version ${appVersion()}. New versions show up on your GitHub Releases page after each build.", 13f, top = 4)
             val b = button(up, "Get the latest version", primary = true) {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Prefs.RELEASES_URL)))
@@ -726,21 +717,12 @@ class MainActivity : Activity() {
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
         c.addView(head, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        val firstSpace = e.title.indexOf(' ')
-        val lead = if (firstSpace > 0) e.title.substring(0, firstSpace) else ""
-        val hasEmoji = lead.isNotEmpty() && lead.none { it.isLetterOrDigit() }
-        val emoji = TextView(this)
-        emoji.text = if (hasEmoji) lead else "\u2728"
-        emoji.textSize = 18f
-        emoji.gravity = Gravity.CENTER
-        emoji.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Look.deep3) }
-        head.addView(emoji, LinearLayout.LayoutParams(dp(40), dp(40)))
         val name = TextView(this)
-        name.text = if (hasEmoji) e.title.substring(firstSpace + 1) else e.title
+        name.text = e.title
         name.textSize = 16f
         name.setTextColor(Color.WHITE)
         name.setTypeface(name.typeface, Typeface.BOLD)
-        name.setPadding(dp(12), 0, dp(8), 0)
+        name.setPadding(0, 0, dp(8), 0)
         head.addView(name, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         if (isNew) {
             val pill = TextView(this)
@@ -903,7 +885,7 @@ class MainActivity : Activity() {
             t.textSize = 13f
             t.setTextColor(labelColor())
             r.addView(t, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-            button(r, "\u25b6") { if (requireKey(item.voice)) ReadService.read(this, item.text, item.voice) }
+            button(r, "Play") { if (requireKey(item.voice)) ReadService.read(this, item.text, item.voice) }
         }
         button(row(historyBox), "Clear recent reads", 1f) {
             History.clear(this)
@@ -927,7 +909,7 @@ class MainActivity : Activity() {
         val items = Saved.list(this)
         savedBox.removeAllViews()
         if (items.isEmpty()) {
-            val empty = label(savedBox, "\uD83D\uDCDA\n\nNothing saved yet.\nOpen a PDF, Word file or EPUB book, share a webpage, or paste a long text, and it shows up here.", 14f, top = 30)
+            val empty = label(savedBox, "Nothing saved yet.\nOpen a PDF, Word file or EPUB book, share a webpage, or paste a long text, and it shows up here.", 14f, top = 30)
             empty.gravity = Gravity.CENTER
             return
         }
@@ -947,11 +929,14 @@ class MainActivity : Activity() {
         savedBox.addView(c, lp)
 
         val icon = TextView(this)
-        icon.text = item.icon
-        icon.textSize = 22f
+        icon.text = item.badge
+        icon.textSize = 11f
+        icon.letterSpacing = 0.06f
+        icon.setTypeface(icon.typeface, Typeface.BOLD)
+        icon.setTextColor(Look.soft)
         icon.gravity = Gravity.CENTER
         icon.background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(Look.deep3) }
-        c.addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)))
+        c.addView(icon, LinearLayout.LayoutParams(dp(52), dp(52)))
 
         val mid = LinearLayout(this)
         mid.orientation = LinearLayout.VERTICAL
@@ -971,8 +956,8 @@ class MainActivity : Activity() {
         val length = if (mins >= 60) "${mins / 60} h ${mins % 60} min" else "$mins min"
         val ago = DateUtils.getRelativeTimeSpanString(item.opened, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)
         val state = when {
-            playing -> "\u25B6 Playing \u00b7 ${item.percent}%"
-            item.done -> "\u2713 Finished"
+            playing -> "Playing \u00b7 ${item.percent}%"
+            item.done -> "Finished"
             item.percent > 0 -> "${item.percent}% read"
             else -> "Not started"
         }
@@ -1007,22 +992,22 @@ class MainActivity : Activity() {
 
     private fun savedOptions(item: SavedRead) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        if (item.resumeFrom > 0.0) actions.add("\u25B6  Continue from ${item.percent}%" to { ReadService.readSaved(this, item.id) })
-        actions.add((if (item.resumeFrom > 0.0) "\u21BA  Start over" else "\u25B6  Play from the start") to { ReadService.readSaved(this, item.id, fromStart = true) })
-        actions.add("\uD83D\uDCD6  Follow along" to {
+        if (item.resumeFrom > 0.0) actions.add("Continue from ${item.percent}%" to { ReadService.readSaved(this, item.id) })
+        actions.add((if (item.resumeFrom > 0.0) "Start over" else "Play from the start") to { ReadService.readSaved(this, item.id, fromStart = true) })
+        actions.add("Follow along" to {
             if (ReadSession.savedId != item.id) ReadService.readSaved(this, item.id)
             startActivity(Intent(this, ReaderActivity::class.java))
         })
-        if (item.done || item.percent > 0) actions.add("\u2713  Mark as not started" to {
+        if (item.done || item.percent > 0) actions.add("Mark as not started" to {
             Saved.update(this, item.id) { it.copy(fraction = 0.0, done = false) }
             renderSaved()
         })
-        if (!item.done) actions.add("\u2713  Mark as finished" to {
+        if (!item.done) actions.add("Mark as finished" to {
             Saved.update(this, item.id) { it.copy(fraction = 1.0, done = true) }
             renderSaved()
         })
-        actions.add("\u270F  Rename" to { renameSaved(item) })
-        actions.add("\uD83D\uDDD1  Remove" to {
+        actions.add("Rename" to { renameSaved(item) })
+        actions.add("Remove" to {
             if (ReadSession.savedId == item.id) ReadSession.savedId = null
             Saved.remove(this, item.id)
             renderSaved()
@@ -1143,10 +1128,17 @@ class MainActivity : Activity() {
             label(t, v.name, 15f, bold = v.id == main)
             chip(t, serviceName(v.id, long = false), v.id)
             val star = TextView(this)
-            star.text = if (v.id == main) "\u2605" else "\u2606"
-            star.textSize = 21f
-            star.setTextColor(if (v.id == main) Color.parseColor("#FFC94A") else Look.dim)
-            star.setPadding(dp(8), dp(4), dp(10), dp(4))
+            val isMain = v.id == main
+            star.text = if (isMain) "MAIN" else "Set main"
+            star.textSize = if (isMain) 10f else 12f
+            if (isMain) star.letterSpacing = 0.08f
+            star.setTypeface(star.typeface, Typeface.BOLD)
+            star.setTextColor(if (isMain) Color.WHITE else Look.soft)
+            star.background = rounded(if (isMain) accent else Look.raise, 99)
+            star.setPadding(dp(10), dp(5), dp(10), dp(5))
+            val starLp = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+            starLp.marginEnd = dp(8)
+            star.layoutParams = starLp
             star.setOnClickListener {
                 if (v.id != main) {
                     prefs.mainVoice = v.id
@@ -1181,12 +1173,6 @@ class MainActivity : Activity() {
 
     private fun bigTitle(parent: LinearLayout, text: String) {
         val box = android.widget.FrameLayout(this)
-        box.background = GradientDrawable().apply {
-            gradientType = GradientDrawable.RADIAL_GRADIENT
-            setGradientCenter(0.92f, 0f)
-            gradientRadius = dp(230).toFloat()
-            colors = intArrayOf(Look.accentA(60), Look.accentA(0))
-        }
         val t = TextView(this)
         t.text = text
         t.textSize = 32f
@@ -1296,11 +1282,6 @@ class MainActivity : Activity() {
     private fun renderLangBar() {
         if (!::langBar.isInitialized) return
         langBar.removeAllViews()
-        val label = TextView(this)
-        label.text = "\uD83C\uDF0D"
-        label.textSize = 16f
-        label.setPadding(dp(2), 0, dp(8), 0)
-        langBar.addView(label)
         val current = prefs.translateTo
         val shown = (listOf("") + (listOf(current) + prefs.recentLangs).filter { it.isNotBlank() }.distinct().take(3))
         for (code in shown) {
@@ -1456,7 +1437,7 @@ class MainActivity : Activity() {
             .setTitle(if (rule == null) "Add a word" else "Edit \u201c${rule.word}\u201d")
             .setView(box)
             .setPositiveButton("Save", null)
-            .setNeutralButton("\u25B6 Test", null)
+            .setNeutralButton("Test", null)
             .setNegativeButton(if (rule == null) "Cancel" else "Delete") { _, _ ->
                 if (rule != null) {
                     prefs.sayRules = prefs.sayRules.filterNot { it == rule }
@@ -1536,7 +1517,7 @@ class MainActivity : Activity() {
     private fun setMood(cue: String, valueView: TextView) {
         prefs.mood = cue
         valueView.text = Moods.label(prefs.mood) + " \u00b7 Fish voices"
-        toast(if (cue.isBlank()) "Normal voice." else "Mood: ${Moods.label(prefs.mood)}. Try it with \u25b6 on a voice.")
+        toast(if (cue.isBlank()) "Normal voice." else "Mood: ${Moods.label(prefs.mood)}. Try it by playing a voice.")
     }
 
     private fun pickModel(valueView: TextView) {
@@ -1617,15 +1598,14 @@ class MainActivity : Activity() {
     }
 
     private fun playCircle(parent: LinearLayout, sizeDp: Int, big: Boolean, onClick: () -> Unit) {
-        val b = TextView(this)
-        b.text = "\u25B6"
-        b.gravity = Gravity.CENTER
-        b.textSize = if (big) 15f else 12f
-        b.setTextColor(Color.WHITE)
-        b.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(if (big) accent else Look.raise)
-        }
+        val b = View(this)
+        b.background = android.graphics.drawable.LayerDrawable(arrayOf(
+            GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (big) accent else Look.raise)
+            },
+            Glyph(Glyph.Kind.PLAY, Color.WHITE, dp(if (big) 14 else 11).toFloat()),
+        ))
         b.setOnClickListener { onClick() }
         parent.addView(b, LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)))
     }
@@ -1751,12 +1731,13 @@ class MainActivity : Activity() {
         line.setBackgroundColor(Look.line)
         parent.addView(line, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)))
         parent.addView(bar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        listOf("\uD83E\uDEB7\nPlayer", "\uD83D\uDCDA\nSaved", "\uD83C\uDF99\nVoices", "\u2699\nSettings").forEachIndexed { i, t ->
+        listOf("Player", "Saved", "Voices", "Settings").forEachIndexed { i, t ->
             val tab = TextView(this)
             tab.text = t
             tab.gravity = Gravity.CENTER
-            tab.textSize = 12f
-            tab.setPadding(0, dp(6), 0, dp(4))
+            tab.textSize = 13f
+            tab.letterSpacing = 0.02f
+            tab.setPadding(0, dp(12), 0, dp(12))
             tab.setOnClickListener { selectTab(i) }
             bar.addView(tab, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
             tabs.add(tab)
@@ -1773,7 +1754,17 @@ class MainActivity : Activity() {
             val on = n == i
             t.setTextColor(if (on) Look.soft else mutedColor)
             t.setTypeface(null, if (on) Typeface.BOLD else Typeface.NORMAL)
+            t.background = if (on) tabMark() else null
         }
+    }
+
+    /** A short accent bar under the selected tab. */
+    private fun tabMark(): android.graphics.drawable.Drawable {
+        val bar = GradientDrawable().apply { cornerRadius = dp(2).toFloat(); setColor(accent) }
+        val layer = android.graphics.drawable.LayerDrawable(arrayOf(bar))
+        layer.setLayerGravity(0, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+        layer.setLayerSize(0, dp(28), dp(3))
+        return layer
     }
 
     private fun showAddService() {

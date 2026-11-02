@@ -247,7 +247,7 @@ object PhoneTts {
             .filter { !it.isNetworkConnectionRequired }
             .sortedWith(compareBy({ it.locale.displayLanguage }, { it.name }))
             .map { v ->
-                val quality = if (v.quality >= android.speech.tts.Voice.QUALITY_VERY_HIGH) " ★" else ""
+                val quality = if (v.quality >= android.speech.tts.Voice.QUALITY_VERY_HIGH) " \u00b7 HD" else ""
                 "${v.locale.displayName} · ${v.name.substringAfterLast('-')}$quality" to v.name
             }
     }
@@ -275,7 +275,7 @@ object PhoneTts {
             val v = voiceFor(ctx, lang)
                 ?: throw ProviderError(
                     "Your phone doesn't have a ${java.util.Locale(lang).displayLanguage} voice yet. " +
-                        "Settings \u2192 General management \u2192 Text-to-speech \u2192 \u2699 \u2192 Install voice data."
+                        "Settings \u2192 General management \u2192 Text-to-speech \u2192 settings gear \u2192 Install voice data."
                 )
             e.voice = v
         } else if (voiceName.isNotBlank()) {

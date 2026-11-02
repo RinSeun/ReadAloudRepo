@@ -42,6 +42,7 @@ class ReaderActivity : Activity() {
     private lateinit var titleView: TextView
     private lateinit var status: TextView
     private lateinit var playBtn: Button
+    private var shownPause: Boolean? = null
     private lateinit var prevBtn: Button
     private lateinit var nextBtn: Button
     private lateinit var followBtn: Button
@@ -84,7 +85,7 @@ class ReaderActivity : Activity() {
         titleView.maxLines = 2
         titleView.setPadding(dp(12), 0, dp(8), 0)
         top.addView(titleView, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        if (Edition.PLAY) smallButton(top, "\u2691") { Report.show(this) }
+        if (Edition.PLAY) smallButton(top, "Report") { Report.show(this) }
         followBtn = smallButton(top, "Following") {
             follow = !follow
             followBtn.text = if (follow) "Following" else "Follow"
@@ -127,11 +128,11 @@ class ReaderActivity : Activity() {
         row.orientation = LinearLayout.HORIZONTAL
         row.gravity = Gravity.CENTER
         panel.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        prevBtn = ctrl(row, "⏮") { ReadService.control(this, ReadService.ACTION_PREV_PART) }
-        ctrl(row, "⏪ 10") { player.skip(-10.0) }
-        playBtn = ctrl(row, "⏸", big = true) { player.togglePause() }
-        ctrl(row, "10 ⏩") { player.skip(10.0) }
-        nextBtn = ctrl(row, "⏭") { ReadService.control(this, ReadService.ACTION_NEXT_PART) }
+        prevBtn = ctrl(row, "", glyph = Glyph.Kind.PREV) { ReadService.control(this, ReadService.ACTION_PREV_PART) }
+        ctrl(row, "\u221210s") { player.skip(-10.0) }
+        playBtn = ctrl(row, "", big = true, glyph = Glyph.Kind.PAUSE) { player.togglePause() }
+        ctrl(row, "+10s") { player.skip(10.0) }
+        nextBtn = ctrl(row, "", glyph = Glyph.Kind.NEXT) { ReadService.control(this, ReadService.ACTION_NEXT_PART) }
     }
 
     override fun onResume() {
@@ -206,7 +207,11 @@ class ReaderActivity : Activity() {
             Phase.ERROR -> s.message
             Phase.IDLE -> if (count > 0) "Stopped" else ""
         }
-        playBtn.text = if (s.phase == Phase.PLAYING || s.phase == Phase.LOADING) "⏸" else "▶"
+        val showPause = s.phase == Phase.PLAYING || s.phase == Phase.LOADING
+        if (showPause != shownPause) {
+            shownPause = showPause
+            playBtn.foreground = Glyph(if (showPause) Glyph.Kind.PAUSE else Glyph.Kind.PLAY, Color.WHITE, dp(20f))
+        }
         prevBtn.alpha = if (count > 1) 1f else 0.35f
         nextBtn.alpha = if (ReadSession.hasNext) 1f else 0.35f
 
@@ -260,9 +265,10 @@ class ReaderActivity : Activity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun dp(v: Float) = v * resources.displayMetrics.density
 
-    private fun ctrl(parent: LinearLayout, label: String, big: Boolean = false, onClick: () -> Unit): Button {
+    private fun ctrl(parent: LinearLayout, label: String, big: Boolean = false, glyph: Glyph.Kind? = null, onClick: () -> Unit): Button {
         val b = Button(this)
         b.text = label
+        if (glyph != null) b.foreground = Glyph(glyph, Color.WHITE, dp(if (big) 20f else 14f))
         b.isAllCaps = false
         b.textSize = if (big) 22f else 15f
         b.setTextColor(Color.WHITE)

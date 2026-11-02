@@ -5,9 +5,19 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
-            "\uD83D\uDCDA Saved Reads & themes",
+            "A cleaner look",
             listOf(
-                "New Saved tab: your documents, books, articles and long reads are kept on a shelf, and Lotus Aloud remembers where you stopped. Tap \u25B6 to carry on, or tap a read to start over, rename it, mark it finished or remove it.",
+                "Emoji are gone from buttons, tabs, menus and cards. Everything is plain, easy-to-read text, with your theme color.",
+                "New play, pause and skip buttons that match your theme.",
+                "Saved Reads show a small PDF, BOOK, WORD or WEB label.",
+                "Voices: tap Set main to choose your main voice.",
+                "The glow now sits only behind the lotus.",
+            ),
+        ),
+        Entry(
+            "Saved Reads & themes",
+            listOf(
+                "New Saved tab: your documents, books, articles and long reads are kept on a shelf, and Lotus Aloud remembers where you stopped. Tap Play to carry on, or tap a read to start over, rename it, mark it finished or remove it.",
                 "Open the same document again and it carries on from your spot.",
                 "EPUB books now work (books without copy protection), along with PDF, Word and text files.",
                 "Only the text and your spot are kept, never the audio, so Saved Reads stays small.",
@@ -15,14 +25,14 @@ object Changelog {
             ),
         ),
         Entry(
-            "\u2702 Smart skipping & pronunciation",
+            "Smart skipping & pronunciation",
             listOf(
                 "Smart skipping (Settings \u2192 Cleaner reading): skips headers and footers that repeat on every page, page numbers, citations like [12] or (Smith et al., 2020), long links, DOIs and email addresses, and the reference list at the end. Tap it to choose what gets skipped.",
                 "Pronunciation: teach Lotus Aloud how to say names and words it gets wrong (LSS \u2192 L S S, Nguyen \u2192 Win). Works with every voice, and Follow along still shows the original word.",
             ),
         ),
         Entry(
-            "\uD83D\uDDE3 Better pronunciation in other languages",
+            "Better pronunciation in other languages",
             listOf(
                 "Phone voices now switch to the right language by themselves: Korean text is read by your phone's Korean voice, not the English one.",
                 "Pick a voice for each language: hold a language pill (or Settings \u2192 Voice for each language). A native voice sounds far better than an English voice speaking Korean.",
@@ -32,7 +42,7 @@ object Changelog {
             ),
         ),
         Entry(
-            "\uD83C\uDF0D Switch languages in one tap",
+            "Switch languages in one tap",
             listOf(
                 "Language pills under the lotus on the Player tab: tap Original, a recent language, or + More.",
                 "Switch while something is playing and it carries on in the new language from about the same spot.",
@@ -43,7 +53,7 @@ object Changelog {
             ),
         ),
         Entry(
-            "\uD83C\uDF0D Translate & read",
+            "Translate & read",
             listOf(
                 "Settings \u2192 Translate to: pick a language and everything you read is translated first, then read out loud.",
                 "Translation happens on your phone: free, no credit, and offline after a one-time download per language (about 30 MB).",
@@ -52,7 +62,7 @@ object Changelog {
             ),
         ),
         Entry(
-            "\uD83D\uDCC4 Documents & \uD83C\uDFAD moods",
+            "Documents & moods",
             listOf(
                 "Read PDFs, Word (.docx) and text files: share one to Lotus Aloud, open a PDF with it, or tap \u201cRead a document\u201d in the app.",
                 "Scanned PDFs work too: pages are read on your phone (free, no credit), and page numbers and headers are skipped.",
@@ -61,7 +71,7 @@ object Changelog {
             ),
         ),
         Entry(
-            "\u26A1 Starts reading faster, no more waiting between parts",
+            "Starts reading faster, no more waiting between parts",
             listOf(
                 "No more stuttering: if the voice service falls behind, it pauses once to build a cushion instead of choppy start-stop audio.",
                 "Stays three parts ahead on long reads.",
@@ -76,23 +86,23 @@ object Changelog {
             ),
         ),
         Entry(
-            "\u2728 New Voices & Settings look",
+            "New Voices & Settings look",
             listOf(
-                "Voices: your main voice up top, coloured badges per service, tap \u2605 to make a voice main, hold one to remove it.",
+                "Voices: your main voice up top, coloured badges per service, tap Set main to make a voice your main, hold one to remove it.",
                 "Connected services show a green dot once your key is in - tap to add or change a key.",
                 "Settings: big title, clean grouped rows, a big speed number with \u2212 / + buttons, and real on/off switches.",
                 "You can now turn the screenshot double-tap off if you don't want it.",
             ),
         ),
         Entry(
-            "\uD83D\uDDC2 Tabs",
+            "Tabs",
             listOf(
                 "The app now has tabs at the bottom: Player, Voices and Settings - no more long scrolling page.",
                 "The floating bubble uses less battery when nothing is playing.",
             ),
         ),
         Entry(
-            "\uD83C\uDF99 More voices: ElevenLabs & your phone",
+            "More voices: ElevenLabs & your phone",
             listOf(
                 "Add voices from ElevenLabs (paste your ElevenLabs key, then pick from your voices).",
                 "Or use your phone's own voices - free, offline and instant. Handy when credit runs out.",
@@ -101,15 +111,15 @@ object Changelog {
             ),
         ),
         Entry(
-            "\uD83E\uDEB7 Big lotus & Fish credit",
+            "Big lotus & Fish credit",
             listOf(
                 "A big glowing lotus at the top - it gently breathes while reading. Tap it to follow along.",
                 "Your Fish Audio credit balance is shown under it, with a warning when it gets low. Tap it to refresh.",
-                "The \u201c\u2728 New\u201d button got a fresh look.",
+                "The New button got a fresh look.",
             ),
         ),
         Entry(
-            "\uD83D\uDCD6 Follow along, links & long reads",
+            "Follow along, links & long reads",
             listOf(
                 "Follow-along screen: see the text as it's read, with the current sentence highlighted. Tap any sentence to jump there.",
                 "Open it by tapping the notification, or \u201cFollow along\u201d in the app.",
@@ -118,7 +128,7 @@ object Changelog {
             ),
         ),
         Entry(
-            "\uD83C\uDFA8 New look + screenshot double-tap",
+            "New look + screenshot double-tap",
             listOf(
                 "A new dark lotus design with your logo at the top.",
                 "Double-tap the lotus bubble to read your latest screenshot - no Share menu needed.",
@@ -126,7 +136,7 @@ object Changelog {
             ),
         ),
         Entry(
-            "\uD83E\uDEB7 Now called Lotus Aloud",
+            "Now called Lotus Aloud",
             listOf(
                 "New name: Lotus Aloud. The Quick Settings tile is now \u201cLotus Read\u201d.",
                 "The app icon is now the Lotus Shield Studio logo.",
@@ -135,7 +145,7 @@ object Changelog {
             ),
         ),
         Entry(
-            "✨ What's new button",
+            "What's new button",
             listOf(
                 "This pop-up! Tap “What's new” at the top of the app any time.",
                 "It shows once by itself after each update.",
@@ -143,7 +153,7 @@ object Changelog {
             ),
         ),
         Entry(
-            "📷 Read screenshots & photos",
+            "Read screenshots & photos",
             listOf(
                 "Take a screenshot → Share → Lotus Aloud, and it reads the text in it.",
                 "Works with photos and several screenshots at once.",
@@ -152,11 +162,11 @@ object Changelog {
             ),
         ),
         Entry(
-            "🔤 Renamed to “Read audio”",
+            "Renamed to “Read audio”",
             listOf("Our option in the highlight menu is now “Read audio”, so it isn't mixed up with Claude's or Android's “Read aloud”."),
         ),
         Entry(
-            "🐟 Floating bubble, media controls & more",
+            "Floating bubble, media controls & more",
             listOf(
                 "Floating lotus bubble: copy text in any app (Opera, Messenger...), tap the bubble to read it.",
                 "Lock-screen, earbud, Bluetooth and car controls.",
@@ -166,11 +176,11 @@ object Changelog {
             ),
         ),
         Entry(
-            "⬇ Quick Settings tile",
+            "Quick Settings tile",
             listOf("“Lotus Read” tile: copy text, swipe down, tap it to read."),
         ),
         Entry(
-            "🎉 First version",
+            "First version",
             listOf(
                 "Highlight text in any app → read it in your Fish voice.",
                 "Share text to Lotus Aloud.",
