@@ -10,6 +10,7 @@ object Changelog {
                 "Phone voices now switch to the right language by themselves: Korean text is read by your phone's Korean voice, not the English one.",
                 "Pick a voice for each language: hold a language pill (or Settings \u2192 Voice for each language). A native voice sounds far better than an English voice speaking Korean.",
                 "Works without translating too: Lotus Aloud spots the language of what you're reading and uses that language's voice.",
+                "Fixed: short phrases translated oddly (\u201cHello\u201d became the phone-call hello \uC5EC\uBCF4\uC138\uC694 in Korean). Common greetings and thanks are now always right in Korean, Japanese, Chinese, Spanish, French, German, Italian and Portuguese, and other short text is translated as a proper sentence.",
                 "Korean, Japanese and Chinese text is now split into sentences properly, so it starts faster and Follow along highlights the right sentence.",
             ),
         ),

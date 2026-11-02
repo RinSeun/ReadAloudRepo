@@ -49,6 +49,7 @@ object Translate {
 
     fun translate(text: String, target: String, status: (String) -> Unit): String {
         if (target.isBlank()) return text
+        Phrasebook.lookup(text, target)?.let { return it }
         val id = LanguageIdentification.getClient()
         val detected = try {
             Tasks.await(id.identifyLanguage(text.take(1500)))
@@ -71,6 +72,7 @@ object Translate {
                 throw ProviderError("Couldn't download ${label(target)} for translating. Check your internet connection and try again.")
             }
             val paras = text.split(Regex("\\n\\s*\\n")).map { it.trim() }.filter { it.isNotEmpty() }
+                .map { Phrasebook.asSentence(it) }
             val out = ArrayList<String>(paras.size)
             paras.forEachIndexed { i, p ->
                 status("Translating to ${label(target)}... ${(i + 1) * 100 / paras.size}%")
