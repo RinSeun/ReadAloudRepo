@@ -44,7 +44,7 @@ android {
             targetSdk = 34
             signingConfig = signingConfigs.getByName("release")
             buildConfigField("boolean", "PLAY", "false")
-            buildConfigField("String", "DEFAULT_VOICE", "\"19beff0760174a6e92a34eafbfbeada7\"")
+            buildConfigField("String", "DEFAULT_VOICE", "\"phone:\"")
             buildConfigField("String", "SUPPORT_EMAIL", "\"\"")
             buildConfigField("String", "PRIVACY_URL", "\"\"")
             buildConfigField("String", "REPORT_WEBHOOK", "\"\"")

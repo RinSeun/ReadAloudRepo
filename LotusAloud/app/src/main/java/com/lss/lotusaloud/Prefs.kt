@@ -27,7 +27,16 @@ class Prefs(context: Context) {
 
     var translateTo: String
         get() = sp.getString("translateTo", "") ?: ""
-        set(v) { sp.edit().putString("translateTo", v).apply() }
+        set(v) {
+            sp.edit().putString("translateTo", v).apply()
+            if (v.isNotBlank()) {
+                val recent = (listOf(v) + recentLangs.filter { it != v }).take(3)
+                sp.edit().putString("recentLangs", recent.joinToString(",")).apply()
+            }
+        }
+
+    val recentLangs: List<String>
+        get() = (sp.getString("recentLangs", "") ?: "").split(",").filter { it.isNotBlank() }
 
     var speed: Float
         get() = sp.getFloat("speed", 1f)
@@ -35,7 +44,7 @@ class Prefs(context: Context) {
 
     var voices: List<Voice>
         get() {
-            val raw = sp.getString("voices", null) ?: return listOf(Voice(Edition.DEFAULT_VOICE_NAME, DEFAULT_VOICE))
+            val raw = sp.getString("voices", null) ?: return firstVoices()
             return try {
                 val arr = JSONArray(raw)
                 (0 until arr.length()).map { i ->
@@ -51,6 +60,20 @@ class Prefs(context: Context) {
             list.forEach { arr.put(JSONObject().put("name", it.name).put("id", it.id)) }
             sp.edit().putString("voices", arr.toString()).apply()
         }
+
+    /**
+     * Fresh installs start with the phone's free voice. Someone updating from a version that came
+     * with the built-in Fish voice (and who has a Fish key) keeps it, so nothing changes under them.
+     */
+    private fun firstVoices(): List<Voice> {
+        val list = if (!Edition.PLAY && apiKey.isNotBlank())
+            listOf(Voice("My voice", LEGACY_VOICE))
+        else
+            listOf(Voice(Edition.DEFAULT_VOICE_NAME, DEFAULT_VOICE))
+        voices = list
+        if (!sp.contains("mainVoice")) mainVoice = list.first().id
+        return list
+    }
 
     var mainVoice: String
         get() {
@@ -89,6 +112,7 @@ class Prefs(context: Context) {
     companion object {
         const val RELEASES_URL = "https://github.com/RinSeun/ReadAloudRepo/releases"
         val DEFAULT_VOICE: String get() = Edition.DEFAULT_VOICE
+        const val LEGACY_VOICE = "19beff0760174a6e92a34eafbfbeada7"
         const val DEFAULT_MODEL = "s2.1-pro"
         val MODELS = listOf("s2.1-pro", "s2.1-pro-free", "s2-pro", "s1")
 

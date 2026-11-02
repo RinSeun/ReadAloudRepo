@@ -84,6 +84,8 @@ class MainActivity : Activity() {
     private lateinit var addBtn: Button
     private lateinit var heroLogo: android.widget.ImageView
     private lateinit var creditPill: TextView
+    private lateinit var langBar: LinearLayout
+    private var transValue: TextView? = null
     private var creditText = ""
     private var creditColor = 0
     private var breathing: android.animation.ObjectAnimator? = null
@@ -168,6 +170,17 @@ class MainActivity : Activity() {
         creditRow.addView(creditPill, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
         playerPage.addView(creditRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         showCredit()
+
+        val langScroll = android.widget.HorizontalScrollView(this)
+        langScroll.isHorizontalScrollBarEnabled = false
+        langBar = LinearLayout(this)
+        langBar.orientation = LinearLayout.HORIZONTAL
+        langBar.gravity = Gravity.CENTER_VERTICAL
+        langScroll.addView(langBar, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
+        val langLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        langLp.topMargin = dp(12)
+        playerPage.addView(langScroll, langLp)
+        renderLangBar()
 
         cur = card(playerPage, "Now playing")
         statusText = label(cur, "Idle", 15f)
@@ -354,7 +367,8 @@ class MainActivity : Activity() {
         moodRow.first.setOnClickListener { pickMood(moodRow.second) }
         divider(g)
         val transRow = settingsRow(g, "Translate to", translateText(), valuePink = true)
-        transRow.first.setOnClickListener { pickTranslate(transRow.second) }
+        transValue = transRow.second
+        transRow.first.setOnClickListener { pickTranslate() }
 
         sectionLabel(settingsPage, "SHORTCUTS")
         g = group(settingsPage)
@@ -431,8 +445,9 @@ class MainActivity : Activity() {
         checkCredit(force = false)
 
         if (prefs.seenChanges < Changelog.ENTRIES.size) {
+            val fresh = (Changelog.ENTRIES.size - prefs.seenChanges).coerceAtMost(Changelog.ENTRIES.size)
             prefs.seenChanges = Changelog.ENTRIES.size
-            handler.post { showWhatsNew() }
+            handler.post { showWhatsNew(fresh) }
         }
     }
 
@@ -503,27 +518,157 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showWhatsNew() {
-        val text = Changelog.ENTRIES.joinToString("\n\n") { e ->
-            e.title + "\n" + e.items.joinToString("\n") { "\u2022 $it" }
-        }
-        val body = TextView(this)
-        body.text = text
-        body.textSize = 14f
-        body.setTextColor(labelColor())
-        body.setPadding(dp(22), dp(8), dp(22), dp(8))
+    private fun showWhatsNew(newCount: Int = 1) {
+        val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
+        val root = LinearLayout(this)
+        root.orientation = LinearLayout.VERTICAL
+        root.setBackgroundColor(bgColor)
+
         val scroll = ScrollView(this)
-        scroll.addView(body)
-        val dlg = android.app.AlertDialog.Builder(this)
-            .setTitle("What's new in Lotus Aloud")
-            .setView(scroll)
-            .setPositiveButton("Got it", null)
+        val page = LinearLayout(this)
+        page.orientation = LinearLayout.VERTICAL
+        page.setPadding(dp(18), dp(12), dp(18), dp(24))
+        scroll.addView(page)
+        root.addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+
+        val close = TextView(this)
+        close.text = "\u2715"
+        close.textSize = 18f
+        close.setTextColor(mutedColor)
+        close.setPadding(dp(10), dp(10), dp(4), dp(4))
+        close.setOnClickListener { dlg.dismiss() }
+        val closeRow = LinearLayout(this)
+        closeRow.gravity = Gravity.END
+        closeRow.addView(close)
+        page.addView(closeRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val hero = android.widget.FrameLayout(this)
+        val glow = View(this)
+        glow.background = GradientDrawable().apply {
+            gradientType = GradientDrawable.RADIAL_GRADIENT
+            gradientRadius = dp(80).toFloat()
+            colors = intArrayOf(Color.argb(120, 250, 30, 78), Color.argb(0, 250, 30, 78))
+        }
+        hero.addView(glow, android.widget.FrameLayout.LayoutParams(dp(170), dp(170), Gravity.CENTER))
+        val logo = android.widget.ImageView(this)
+        logo.setImageResource(resources.getIdentifier("ic_lotus_hero", "drawable", packageName))
+        hero.addView(logo, android.widget.FrameLayout.LayoutParams(dp(104), dp(104), Gravity.CENTER))
+        page.addView(hero, LinearLayout.LayoutParams(MATCH_PARENT, dp(140)))
+
+        val title = label(page, "What's new", 30f, bold = true, color = Color.WHITE)
+        title.gravity = Gravity.CENTER
+        val sub = label(page, "Lotus Aloud ${appVersion()} \u00b7 ${Edition.TAGLINE}", 13f, top = 2)
+        sub.gravity = Gravity.CENTER
+
         if (!Edition.PLAY) {
-            dlg.setNeutralButton("Get latest version") { _, _ ->
+            val up = LinearLayout(this)
+            up.orientation = LinearLayout.VERTICAL
+            up.background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.parseColor("#4A0F24"), Color.parseColor("#2A0E1B"), cardColor),
+            ).apply { cornerRadius = dp(22).toFloat(); setStroke(dp(1), Color.parseColor("#6A1830")) }
+            up.setPadding(dp(18), dp(16), dp(18), dp(14))
+            val upLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+            upLp.topMargin = dp(18)
+            page.addView(up, upLp)
+            label(up, "\u2B07  Updates", 16f, bold = true, color = Color.WHITE)
+            label(up, "You're on version ${appVersion()}. New versions show up on your GitHub Releases page after each build.", 13f, top = 4)
+            val b = button(up, "Get the latest version", primary = true) {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Prefs.RELEASES_URL)))
             }
+            (b.layoutParams as LinearLayout.LayoutParams).apply { width = MATCH_PARENT; topMargin = dp(10) }
         }
+
+        val olderBox = LinearLayout(this)
+        olderBox.orientation = LinearLayout.VERTICAL
+        Changelog.ENTRIES.forEachIndexed { i, e ->
+            val target = if (i < 3) page else olderBox
+            changeCard(target, e, isNew = i < newCount, latest = i == 0)
+        }
+        if (Changelog.ENTRIES.size > 3) {
+            val more = button(page, "Show older updates (${Changelog.ENTRIES.size - 3})") {}
+            (more.layoutParams as LinearLayout.LayoutParams).apply { width = MATCH_PARENT; topMargin = dp(14) }
+            olderBox.visibility = View.GONE
+            page.addView(olderBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            more.setOnClickListener {
+                olderBox.visibility = View.VISIBLE
+                more.visibility = View.GONE
+            }
+        }
+
+        val bottom = LinearLayout(this)
+        bottom.setPadding(dp(18), dp(10), dp(18), dp(18))
+        bottom.setBackgroundColor(Color.parseColor("#0C080D"))
+        val got = button(bottom, "Got it", 1f, primary = true) { dlg.dismiss() }
+        got.minHeight = dp(50)
+        root.addView(bottom, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        dlg.setContentView(root)
+        dlg.window?.statusBarColor = bgColor
+        dlg.window?.navigationBarColor = Color.parseColor("#0C080D")
+        Insets.apply(this, root)
         dlg.show()
+    }
+
+    private fun changeCard(parent: LinearLayout, e: Changelog.Entry, isNew: Boolean, latest: Boolean) {
+        val c = LinearLayout(this)
+        c.orientation = LinearLayout.VERTICAL
+        c.background = rounded(cardColor, 22, if (latest) Color.parseColor("#5A1A2E") else null)
+        c.setPadding(dp(16), dp(14), dp(16), dp(14))
+        val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        lp.topMargin = dp(12)
+        parent.addView(c, lp)
+
+        val head = LinearLayout(this)
+        head.orientation = LinearLayout.HORIZONTAL
+        head.gravity = Gravity.CENTER_VERTICAL
+        c.addView(head, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        val firstSpace = e.title.indexOf(' ')
+        val lead = if (firstSpace > 0) e.title.substring(0, firstSpace) else ""
+        val hasEmoji = lead.isNotEmpty() && lead.none { it.isLetterOrDigit() }
+        val emoji = TextView(this)
+        emoji.text = if (hasEmoji) lead else "\u2728"
+        emoji.textSize = 18f
+        emoji.gravity = Gravity.CENTER
+        emoji.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#34101E")) }
+        head.addView(emoji, LinearLayout.LayoutParams(dp(40), dp(40)))
+        val name = TextView(this)
+        name.text = if (hasEmoji) e.title.substring(firstSpace + 1) else e.title
+        name.textSize = 16f
+        name.setTextColor(Color.WHITE)
+        name.setTypeface(name.typeface, Typeface.BOLD)
+        name.setPadding(dp(12), 0, dp(8), 0)
+        head.addView(name, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        if (isNew) {
+            val pill = TextView(this)
+            pill.text = "NEW"
+            pill.textSize = 10f
+            pill.setTextColor(Color.WHITE)
+            pill.setTypeface(pill.typeface, Typeface.BOLD)
+            pill.background = rounded(accent, 99)
+            pill.setPadding(dp(9), dp(3), dp(9), dp(3))
+            head.addView(pill)
+        }
+        for (item in e.items) {
+            val row = LinearLayout(this)
+            row.orientation = LinearLayout.HORIZONTAL
+            val rlp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+            rlp.topMargin = dp(9)
+            c.addView(row, rlp)
+            val dot = View(this)
+            dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#FF6B8A")) }
+            val dlp = LinearLayout.LayoutParams(dp(6), dp(6))
+            dlp.topMargin = dp(8)
+            dlp.marginStart = dp(4)
+            dlp.marginEnd = dp(12)
+            row.addView(dot, dlp)
+            val t = TextView(this)
+            t.text = item
+            t.textSize = 14f
+            t.setTextColor(Color.parseColor("#DCD3DB"))
+            t.setLineSpacing(0f, 1.2f)
+            row.addView(t, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        }
     }
 
     override fun onPause() {
@@ -876,29 +1021,74 @@ class MainActivity : Activity() {
         if (prefs.translateTo.isBlank()) "Off \u00b7 reads in the original language"
         else Translate.label(prefs.translateTo) + " \u00b7 everything is translated first"
 
-    private fun pickTranslate(valueView: TextView) {
-        val labels = Translate.LANGS.map { it.first }
+    /** Language pills on the Player tab: Off, your recent languages, and More. One tap to switch. */
+    private fun renderLangBar() {
+        if (!::langBar.isInitialized) return
+        langBar.removeAllViews()
+        val label = TextView(this)
+        label.text = "\uD83C\uDF0D"
+        label.textSize = 16f
+        label.setPadding(dp(2), 0, dp(8), 0)
+        langBar.addView(label)
+        val current = prefs.translateTo
+        val shown = (listOf("") + (listOf(current) + prefs.recentLangs).filter { it.isNotBlank() }.distinct().take(3))
+        for (code in shown) {
+            langPill(if (code.isBlank()) "Original" else Translate.label(code), code == current) { setTranslate(code) }
+        }
+        langPill("+ More", false) { pickTranslate() }
+    }
+
+    private fun langPill(text: String, on: Boolean, onClick: () -> Unit) {
+        val t = TextView(this)
+        t.text = text
+        t.textSize = 13f
+        t.setTextColor(if (on) Color.WHITE else mutedColor)
+        if (on) t.setTypeface(t.typeface, Typeface.BOLD)
+        t.background = rounded(if (on) accent else cardColor, 99, if (on) null else Color.parseColor("#2C2330"))
+        t.setPadding(dp(14), dp(7), dp(14), dp(7))
+        t.setOnClickListener { onClick() }
+        val lp = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+        lp.marginEnd = dp(6)
+        langBar.addView(t, lp)
+    }
+
+    private fun setTranslate(code: String) {
+        val firstTime = code.isNotBlank() && code !in prefs.recentLangs
+        if (code == prefs.translateTo) return
+        prefs.translateTo = code
+        renderLangBar()
+        transValue?.text = translateText()
+        val busy = player.isBusy() && ReadSession.original.isNotBlank()
+        if (busy) {
+            ReadService.retranslate(this)
+            toast(if (code.isBlank()) "Back to the original language..." else "Switching to ${Translate.label(code)}...")
+        } else {
+            toast(if (code.isBlank()) "Reading in the original language." else "Everything will be read in ${Translate.label(code)}.")
+        }
+        if (firstTime && !busy) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Reading in ${Translate.label(code)}")
+                .setMessage(
+                    "Everything you read is translated first, then read out loud.\n\n" +
+                        "\u2022 Translation happens on your phone: free, and offline after the first time " +
+                        "(it downloads the language once, about 30 MB).\n\n" +
+                        "\u2022 Fish and ElevenLabs voices can speak it, including your own voice. " +
+                        "Phone voices: pick one for that language in Voices.\n\n" +
+                        "\u2022 Tap \u201cOriginal\u201d on the Player tab to switch back."
+                )
+                .setPositiveButton("Got it", null)
+                .show()
+        }
+    }
+
+    private fun pickTranslate() {
+        val labels = Translate.LANGS.map { if (it.second.isBlank()) "Original (no translation)" else it.first }
         val current = Translate.LANGS.indexOfFirst { it.second == prefs.translateTo }.coerceAtLeast(0)
         android.app.AlertDialog.Builder(this)
-            .setTitle("Translate to")
+            .setTitle("Read in...")
             .setSingleChoiceItems(labels.toTypedArray(), current) { d, i ->
-                prefs.translateTo = Translate.LANGS[i].second
-                valueView.text = translateText()
                 d.dismiss()
-                if (prefs.translateTo.isNotBlank()) {
-                    android.app.AlertDialog.Builder(this)
-                        .setTitle("Translating to ${Translate.LANGS[i].first}")
-                        .setMessage(
-                            "Everything you read will be translated first, then read out loud.\n\n" +
-                                "\u2022 Translation happens on your phone: free, and offline after the first time " +
-                                "(it downloads the language once, about 30 MB).\n\n" +
-                                "\u2022 Fish and ElevenLabs voices can speak it, including your own voice. " +
-                                "Phone voices: pick one for that language in Voices.\n\n" +
-                                "\u2022 Set this back to Off to read things as they are."
-                        )
-                        .setPositiveButton("Got it", null)
-                        .show()
-                }
+                setTranslate(Translate.LANGS[i].second)
             }
             .setNegativeButton("Cancel", null)
             .show()

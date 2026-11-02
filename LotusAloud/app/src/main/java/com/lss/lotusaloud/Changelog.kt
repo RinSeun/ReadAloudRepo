@@ -5,6 +5,15 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "\uD83C\uDF0D Switch languages in one tap",
+            listOf(
+                "Language pills under the lotus on the Player tab: tap Original, a recent language, or + More.",
+                "Switch while something is playing and it carries on in the new language from about the same spot.",
+                "A fresh look for this What's new screen, with an Updates card to grab the latest version.",
+                "New installs start with your phone's free voice, so friends can try it straight away. Your own voices stay as they are.",
+            ),
+        ),
+        Entry(
             "\uD83C\uDF0D Translate & read",
             listOf(
                 "Settings \u2192 Translate to: pick a language and everything you read is translated first, then read out loud.",

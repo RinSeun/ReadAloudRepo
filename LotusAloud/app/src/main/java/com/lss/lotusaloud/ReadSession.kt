@@ -5,6 +5,8 @@ object ReadSession {
     @Volatile var parts: List<String> = emptyList()
     @Volatile var index: Int = 0
     @Volatile var voice: String = ""
+    @Volatile var original: String = ""
+    @Volatile var originalTitle: String? = null
 
     @Volatile var pendingFraction: Double? = null
 

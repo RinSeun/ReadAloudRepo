@@ -7,5 +7,5 @@ object Edition {
     val SUPPORT_EMAIL: String = BuildConfig.SUPPORT_EMAIL.trim()
     val PRIVACY_URL: String = BuildConfig.PRIVACY_URL.trim()
     val REPORT_WEBHOOK: String = BuildConfig.REPORT_WEBHOOK.trim()
-    val DEFAULT_VOICE_NAME: String = if (PLAY) "Phone voice" else "My voice"
+    val DEFAULT_VOICE_NAME: String = "Phone voice"
 }

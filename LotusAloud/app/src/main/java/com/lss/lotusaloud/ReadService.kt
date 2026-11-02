@@ -37,6 +37,7 @@ class ReadService : Service() {
         const val ACTION_NEXT_PART = "com.lss.lotusaloud.NEXT_PART"
         const val ACTION_PREV_PART = "com.lss.lotusaloud.PREV_PART"
         const val ACTION_JUMP = "com.lss.lotusaloud.JUMP"
+        const val ACTION_RETRANSLATE = "com.lss.lotusaloud.RETRANSLATE"
         const val EXTRA_PART = "part"
         const val EXTRA_FRACTION = "fraction"
         const val EXTRA_PATHS = "paths"
@@ -52,6 +53,11 @@ class ReadService : Service() {
                 .putExtra(EXTRA_TEXT, text).putExtra(EXTRA_RECORD, record)
             if (voice != null) i.putExtra(EXTRA_VOICE, voice)
             ctx.startForegroundService(i)
+        }
+
+        /** Reads what's playing again in the newly picked language, from about the same spot. */
+        fun retranslate(ctx: Context) {
+            ctx.startForegroundService(Intent(ctx, ReadService::class.java).setAction(ACTION_RETRANSLATE))
         }
 
         fun readDocument(ctx: Context, path: String, mime: String?, name: String?) {
@@ -184,6 +190,13 @@ class ReadService : Service() {
                     }, "lotus-doc").start()
                 }
             }
+            ACTION_RETRANSLATE -> {
+                val orig = ReadSession.original
+                if (orig.isNotBlank() && ReadSession.count > 0) {
+                    val frac = ReadSession.index.toDouble() / ReadSession.count
+                    startText(orig, ReadSession.voice, false, ReadSession.originalTitle, frac)
+                }
+            }
             ACTION_NEXT_PART -> nextPart()
             ACTION_PREV_PART -> prevPart()
             ACTION_JUMP -> {
@@ -235,15 +248,16 @@ class ReadService : Service() {
         startText(raw, voiceOverride, record, null)
     }
 
-    private fun startText(raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?) {
+    private fun startText(raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?, startFraction: Double = 0.0) {
         val target = Prefs(this).translateTo
-        if (target.isBlank()) return startTextNow(raw, voiceOverride, record, titleOverride)
+        val original = TextCleaner.clean(raw)
+        if (target.isBlank()) return startTextNow(original, voiceOverride, record, titleOverride, original, startFraction)
         player.stop()
         preparing = "Translating to ${Translate.label(target)}..."
         update()
         Thread({
             val result = try {
-                Result.success(Translate.translate(TextCleaner.clean(raw), target) { msg ->
+                Result.success(Translate.translate(original, target) { msg ->
                     handler.post { preparing = msg; update() }
                 })
             } catch (e: Exception) {
@@ -251,14 +265,17 @@ class ReadService : Service() {
             }
             handler.post {
                 preparing = null
-                result.onSuccess { startTextNow(it, voiceOverride, record, titleOverride) }
+                result.onSuccess { startTextNow(it, voiceOverride, record, titleOverride, original, startFraction) }
                     .onFailure { player.showError((it as? ProviderError)?.message ?: "Couldn't translate that.") }
                 update()
             }
         }, "lotus-translate").start()
     }
 
-    private fun startTextNow(raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?) {
+    private fun startTextNow(
+        raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?,
+        original: String = raw, startFraction: Double = 0.0,
+    ) {
         val prefs = Prefs(this)
         val text = TextCleaner.clean(raw)
         val voice = voiceOverride ?: prefs.mainVoice
@@ -270,8 +287,10 @@ class ReadService : Service() {
         if (record) History.add(this, text, voice)
         title = (titleOverride ?: text).replace(Regex("\\s+"), " ").take(80)
         ReadSession.start(title, parts, voice)
+        ReadSession.original = original
+        ReadSession.originalTitle = titleOverride
         requestFocus()
-        playPart(0)
+        playPart((startFraction * parts.size).toInt().coerceIn(0, parts.size - 1))
     }
 
     private fun playPart(i: Int) {
