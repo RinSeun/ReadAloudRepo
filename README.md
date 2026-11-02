@@ -1,93 +1,124 @@
-# Lotus Aloud for Android 🪷 Made for LSS Only
+<p align="center">
+  <img src="docs/lotus.png" width="140" alt="Lotus Aloud">
+</p>
 
-Read anything on your phone out loud in **your own voices**: Fish Audio, ElevenLabs, or the
-phone's free built-in voices. Highlight text in any app and tap **Read audio**. It also reads
-copied text, webpages, screenshots and photos.
-
----
-
-## ⚡ How it starts reading so fast
-
-1. It sends only the **first sentence or two** (~170 characters) to the voice service.
-2. Audio **plays while it streams in**. It starts once a tenth of a second of sound has arrived.
-3. As soon as that audio is coming in, the **next part is prepared in the background**.
-   Parts get bigger as it goes (~170 → ~320 → ~550 → ~750 → ~900 characters, targeting ~150 words), so each one is ready before
-   the last one ends, with no gaps.
-4. It stays **one part ahead**. Stop halfway and you've only used credit for what you heard plus one part.
-5. The connection to the voice service opens the moment you **touch the bubble, tap the tile or
-   open the app**, so the real request doesn't wait for it.
-6. Everything it makes is **saved on the phone** (up to 20 recent items). Replays from *Recent reads* are instant and free.
+<h1 align="center">Lotus Aloud</h1>
+<p align="center"><b>Made for LSS Only</b> · Lotus Shield Studio</p>
+<p align="center">Hear anything on your phone read aloud, in your own voices.</p>
 
 ---
 
-## Ways to read
+## ✨ What it does
+
+Highlight text in **any app** and tap **Read audio**. Or share a webpage, a PDF or a screenshot.
+Lotus Aloud reads it in the voice you choose: your **Fish Audio** voices, your **ElevenLabs** voices,
+or the phone's **free built-in voices**.
+
+| | |
+|---|---|
+| 📖 **Follow along** | See the text as it's read, with the current sentence lit up. Tap any sentence to jump there |
+| 🌍 **Translate & read** | Tap a language under the lotus and everything is translated, then read aloud. 19 languages, on the phone |
+| 🗣 **A voice for each language** | Korean is read by a Korean voice, English by yours. Set it once, and it switches automatically |
+| 📄 **Documents** | PDFs (even scanned ones), Word files and text files |
+| 📷 **Screenshots & photos** | Finds the text in a picture and reads it |
+| 🌐 **Webpages** | Share a link and it reads just the article, without menus or ads |
+| 🎭 **Moods** | Calm, happy, excited, whispering, sarcastic and more, for Fish voices |
+| ⚡ **Fast** | Starts in about a second, with no gaps between parts |
+
+---
+
+## 📲 Ways to read
 
 | How | What to do |
 |---|---|
-| **Highlight menu** | Highlight text → **Read audio** (tap **⋮** in the menu if you don't see it) |
-| **Share** | Share text, a webpage link, a screenshot or a photo → **Lotus Aloud** |
-| **Webpages** | Share a page's link (e.g. Opera → ⋮ → Share). It reads just the article, without menus or ads |
-| **Lotus bubble** | Copy text in any app (Opera, Messenger…), then tap the floating lotus. **Double-tap** reads your latest screenshot |
+| **Highlight menu** | Highlight text → **Read audio** (look under **⋮** if you don't see it) |
+| **Share** | Share text, a link, a PDF, a Word file, a screenshot or a photo → **Lotus Aloud** |
+| **Open with** | In Files, open a PDF or Word file with **Lotus Aloud** |
+| **Lotus bubble** | Copy text anywhere, then tap the floating lotus. **Double-tap** reads your latest screenshot |
 | **Quick Settings tile** | Copy text, swipe down, tap **Lotus Read** |
-| **In the app** | Paste text or a link on the Player tab, or replay something from **Recent reads** |
+| **In the app** | Paste text or a link, or pick a screenshot or document, on the Player tab |
 
-Apps like Opera and Messenger hide the **Read audio** option. Use **Share**, the **bubble** or the **tile** there.
-
-## While it reads
-
-- **Follow along:** see the text with the current sentence lit up. Tap any sentence to jump there.
-  Open it from the notification, the big lotus, or **Follow along** in the app.
-- **Controls:** pause, ⏪ 10s / 10s ⏩, next / previous part. These work from the notification, lock screen,
-  earbuds, Bluetooth and the car.
-- **Speed** changes instantly, even mid-sentence.
-- **Credit:** your Fish credit or ElevenLabs characters left show under the lotus. Tap to refresh.
-
-## The app
-
-- **Player:** the big glowing lotus (it breathes while reading), credit, now playing, paste box, recent reads (saves up to 20 items).
-- **Voices:** your main voice up top, every voice with a coloured badge (Fish / ElevenLabs / Phone).
-  Tap **★** to make a voice main, **▶** to hear it, hold one to remove it. Add voices and keys here.
-- **Settings:** speed, start speed vs. quality (**Fast** by default), Fish model, Lotus bubble,
-  screenshot double-tap, Quick Settings tile, How to use, Test my voice, **What's new**.
-
-## Voices
-
-- **Fish Audio:** paste a voice's fish.audio link. Needs a Fish API key (fish.audio/app/api-keys).
-  The API is billed **separately** from Plus/Pro. "No API credit"? Add credit or pick **s2.1-pro-free**.
-- **ElevenLabs:** paste your ElevenLabs key, then pick from your voices. The free plan has 10,000 characters a month.
-- **Phone:** the phone's own voices. Free, offline and instant. Handy when credit runs out.
-
-All voices are AI-generated. Only use voices you own or that are public. Don't clone someone's voice without their OK.
+> Opera and Messenger hide **Read audio** from their menus. Use **Share**, the **bubble** or the **tile** there.
 
 ---
 
-## Get the app (one time, ~10 minutes)
+## 🎛 While it reads
 
-GitHub builds the app for you, so you never need Android Studio.
+- ⏯ **Pause, ⏪ 10s, 10s ⏩, next and previous part**: from the app, the notification, the lock screen, earbuds or the car.
+- 🐇 **Speed** changes instantly, even mid-sentence.
+- 📖 **Follow along**: tap the notification, the big lotus or **Follow along**.
+- 🌍 **Switch language mid-read**: tap another language pill and it carries on from about the same spot.
 
-1. Put this folder in a **private** GitHub repo (in GitHub Desktop: add the folder → **Commit** → **Publish/Push**).
-   Make sure the `.github` folder is included.
-2. Open the repo's **Actions** tab on github.com. A build starts by itself (about 5 minutes). Wait for the green ✓.
-3. On your **phone**, open the repo on github.com (signed in) → **Releases** → the newest one →
-   tap **LotusAloud.apk**, then open it.
-   - Allow installing from your browser when Android asks.
-   - **Samsung Auto Blocker** may block it: Settings → Security and privacy → Auto Blocker → off (you can turn it back on after).
-   - Play Protect "unknown app"? Tap **More details → Install anyway** (it's your own app).
-4. Open **Lotus Aloud** → **Voices** → tap **Fish Audio** under *Connected services*, paste your key, **Save**.
-   Allow notifications when asked.
+---
 
-## Updating
+## 🎙 Voices
 
-1. Replace the files in your local repo folder with the new ones.
-2. GitHub Desktop → **Commit** → **Push**. A new build starts automatically.
-3. Install the new **LotusAloud.apk** from Releases over the old one. Your settings, voices and keys are kept.
-4. The **What's new** pop-up shows once after each update.
+| Service | How to add it | Cost |
+|---|---|---|
+| **Phone** | Voices → Add a voice → Phone | Free, offline, instant |
+| **Fish Audio** | Add your key under *Connected services*, then paste a voice link from fish.audio | Your Fish API credit. The **s2.1-pro-free** model is free for a limited time |
+| **ElevenLabs** | Add your key, then pick from your ElevenLabs voices | Your ElevenLabs plan (the free plan includes a monthly allowance) |
 
-## Good to know
+- Tap **★** to choose your **main voice**, **▶** to hear a voice, and **hold** a voice to remove it.
+- **Hold a language pill** (or Settings → *Voice for each language*) to choose who reads that language.
+- Phone voices follow the language by themselves. If one is missing: Settings → General management → Text-to-speech → ⚙ → **Install voice data**.
+- Your Fish credit, or ElevenLabs characters left, shows under the lotus.
 
-- Keep the repo **private**: it contains the app's signing key (`app/lotusaloud.keystore`), which lets
-  new versions install over old ones. Never change `applicationId` (`com.lss.fishreader`) or the keystore,
-  or updates won't install.
-- Your API keys stay on your phone. Text you read is sent to the voice service you picked, to make the speech.
-- Battery: the bubble barely checks anything while nothing's playing, and the warm-up is one tiny request at most once a minute.
-- Building on a PC instead (optional): open this folder in Android Studio → **Build → Build APK(s)**.
+> All voices are AI-generated. Only use voices you own or that are public, and never clone someone's voice without their OK.
+
+---
+
+## 🌍 Translation
+
+- Tap **Original**, a recent language, or **+ More** under the lotus. It's that quick.
+- Translation happens **on your phone**: free, and offline after a one-time download per language (about 30 MB).
+- Common phrases ("hello", "thank you", "good morning"…) are always translated correctly in all 19 languages.
+- Single words can be tricky because they have no context. Full sentences translate best.
+
+---
+
+## ⚡ Why it's fast
+
+1. The first part is just a sentence or two (**~170 characters**), so audio starts almost at once.
+2. Audio **plays while it streams in**.
+3. The next **three parts** are prepared while you listen, growing gently: 170 → 320 → 550 → 750 → 900 characters.
+4. A part that's still being made **starts playing anyway**, so there's no waiting between parts.
+5. If the voice service falls behind, it pauses **once** to catch up instead of stuttering.
+6. If Fish is busy ("too many requests"), it waits a moment and **tries again**.
+7. It opens the connection when you touch the bubble, tap the tile or open the app.
+
+---
+
+## 💾 Storage & privacy
+
+- **Recent reads** keep your last **10**. Replays use saved audio, so they're free.
+- Saved audio never takes more than **40 MB**. Settings → **Clear recent reads** empties it.
+- Your **API keys stay on your phone**. Only the text you choose to hear goes to the voice service you picked.
+- Translation, text in pictures and PDFs are handled **on the phone**.
+
+---
+
+## 🛠 Install & update
+
+**First time** (about 10 minutes, no Android Studio needed):
+
+1. Put this folder in a **private** GitHub repo, with the build file at
+   **`.github/workflows/blank.yml`** at the top of the repo.
+2. GitHub builds the app automatically. Wait for the green ✓ in **Actions**.
+3. On your phone: open the repo on github.com → **Releases** → newest → **LotusAloud.apk** → install.
+   - Samsung **Auto Blocker** may block it: Settings → Security and privacy → Auto Blocker → off.
+   - Play Protect "unknown app": **More details → Install anyway**.
+4. Open Lotus Aloud. It starts with your phone's free voice. Add Fish or ElevenLabs under **Voices** whenever you like.
+
+**Updating:** replace the files in your local repo folder → GitHub Desktop **Commit** → **Push** → install the new APK
+from Releases over the old one. Your settings are kept, and **What's new** shows what changed.
+
+---
+
+## ⚠️ Keep in mind
+
+- Keep this repo **private**: it contains the app's signing key (`app/lotusaloud.keystore`).
+- Never change `applicationId` (`com.lss.fishreader`) or the keystore, or updates won't install over your current app.
+- Only one build file should be in `.github/workflows/` at the top of the repo.
+
+<p align="center"><sub>🪷 Lotus Aloud · Made for LSS Only · Lotus Shield Studio</sub></p>
