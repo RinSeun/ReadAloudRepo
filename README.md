@@ -11,12 +11,12 @@ copied text, webpages, screenshots and photos.
 1. It sends only the **first sentence or two** (~170 characters) to the voice service.
 2. Audio **plays while it streams in**. It starts once a tenth of a second of sound has arrived.
 3. As soon as that audio is coming in, the **next part is prepared in the background**.
-   Parts get bigger as it goes (~170 → ~550 → ~1,200 characters), so each one is ready before
+   Parts get bigger as it goes (~170 → ~320 → ~550 → ~750 → ~900 characters, targeting ~150 words), so each one is ready before
    the last one ends, with no gaps.
 4. It stays **one part ahead**. Stop halfway and you've only used credit for what you heard plus one part.
 5. The connection to the voice service opens the moment you **touch the bubble, tap the tile or
    open the app**, so the real request doesn't wait for it.
-6. Everything it makes is **saved on the phone**. Replays from *Recent reads* are instant and free.
+6. Everything it makes is **saved on the phone** (up to 20 recent items). Replays from *Recent reads* are instant and free.
 
 ---
 
@@ -44,7 +44,7 @@ Apps like Opera and Messenger hide the **Read audio** option. Use **Share**, the
 
 ## The app
 
-- **Player:** the big glowing lotus (it breathes while reading), credit, now playing, paste box, recent reads.
+- **Player:** the big glowing lotus (it breathes while reading), credit, now playing, paste box, recent reads (saves up to 20 items).
 - **Voices:** your main voice up top, every voice with a coloured badge (Fish / ElevenLabs / Phone).
   Tap **★** to make a voice main, **▶** to hear it, hold one to remove it. Add voices and keys here.
 - **Settings:** speed, start speed vs. quality (**Fast** by default), Fish model, Lotus bubble,
@@ -84,6 +84,10 @@ GitHub builds the app for you, so you never need Android Studio.
 4. The **What's new** pop-up shows once after each update.
 
 ## Good to know
+
+- Keep the repo **private**: it contains the app's signing key (`app/lotusaloud.keystore`), which lets
+  new versions install over old ones. Never change `applicationId` (`com.lss.fishreader`) or the keystore,
+  or updates won't install.
 - Your API keys stay on your phone. Text you read is sent to the voice service you picked, to make the speech.
 - Battery: the bubble barely checks anything while nothing's playing, and the warm-up is one tiny request at most once a minute.
 - Building on a PC instead (optional): open this folder in Android Studio → **Build → Build APK(s)**.
