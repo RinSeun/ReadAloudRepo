@@ -17,21 +17,6 @@ android {
         versionName = "1.0.$buildNumber"
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file("lotusaloud.keystore")
-            storePassword = "fishreader"
-            keyAlias = "fishreader"
-            keyPassword = "fishreader"
-        }
-        create("play") {
-            storeFile = file("lotusaloud-play.keystore")
-            storePassword = "lotusaloud-lss"
-            keyAlias = "lotusaloud"
-            keyPassword = "lotusaloud-lss"
-        }
-    }
-
     buildFeatures {
         buildConfig = true
     }
@@ -42,7 +27,6 @@ android {
             dimension = "edition"
             applicationId = "com.lss.fishreader"
             targetSdk = 34
-            signingConfig = signingConfigs.getByName("release")
             buildConfigField("boolean", "PLAY", "false")
             buildConfigField("String", "DEFAULT_VOICE", "\"19beff0760174a6e92a34eafbfbeada7\"")
             buildConfigField("String", "SUPPORT_EMAIL", "\"\"")
@@ -53,7 +37,6 @@ android {
             dimension = "edition"
             applicationId = "com.lotusshield.lotusaloud"
             targetSdk = 35
-            signingConfig = signingConfigs.getByName("play")
             buildConfigField("boolean", "PLAY", "true")
             buildConfigField("String", "DEFAULT_VOICE", "\"phone:\"")
             buildConfigField("String", "SUPPORT_EMAIL", "\"${project.findProperty("lotusSupportEmail") ?: ""}\"")
@@ -62,9 +45,22 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("lotusaloud.keystore")
+            storePassword = "fishreader"
+            keyAlias = "fishreader"
+            keyPassword = "fishreader"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

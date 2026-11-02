@@ -111,7 +111,4 @@ Production → Create release → upload the newest `LotusAloud-Play.aab` → re
 
 ## Signing (already handled)
 
-The Play version has its **own** key, `app/lotusaloud-play.keystore` ("Lotus Aloud, Lotus Shield Studio"), separate from your personal app's key.
-The build signs the AAB with it as your **upload key**. On first upload, choose **"Let Google manage and protect your app signing key"** (Play App Signing).
-Keep the repo private and **back up `app/lotusaloud-play.keystore`** somewhere safe (e.g. a USB stick or your Google Drive):
-if it's lost, you have to ask Google to reset your upload key before you can publish updates.
+The build signs the AAB with this repo's key as your **upload key**. On first upload, choose **"Let Google manage and protect your app signing key"** (Play App Signing). Keep the repo private and back up `app/lotusaloud.keystore` somewhere safe: losing it means you can't upload updates without contacting Google.
