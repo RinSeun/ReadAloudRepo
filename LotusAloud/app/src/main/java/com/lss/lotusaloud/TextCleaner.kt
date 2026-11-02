@@ -1,6 +1,5 @@
 package com.lss.lotusaloud
 
-/** Makes copied text read naturally: drops links, re-joins wrapped lines, keeps paragraphs. */
 object TextCleaner {
     private val LINKS = Regex("https?://\\S+|www\\.\\S+")
     private val HYPHEN_WRAP = Regex("(\\w)-\\n(\\w)")
@@ -28,8 +27,7 @@ object TextCleaner {
                     sb.append(clean)
                 } else {
                     val endsSentence = ENDS_SENTENCE.containsMatchIn(sb)
-                    // a heading or list line followed by a new capitalised line gets a pause;
-                    // ordinary wrapped lines (continuing mid-sentence) are just joined
+
                     val headingBreak = lines[i - 1].length < 60 && STARTS_CAPITAL.containsMatchIn(clean)
                     sb.append(if (!endsSentence && (isBullet || headingBreak)) ". " else " ").append(clean)
                 }

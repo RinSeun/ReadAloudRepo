@@ -6,9 +6,8 @@ import org.json.JSONObject
 
 data class Voice(val name: String, val id: String)
 
-/** All settings, stored on the phone. */
 class Prefs(context: Context) {
-    private val sp = context.getSharedPreferences("fish_reader", Context.MODE_PRIVATE) // old name kept so your settings carry over
+    private val sp = context.getSharedPreferences("fish_reader", Context.MODE_PRIVATE)
 
     var apiKey: String
         get() = sp.getString("apiKey", "") ?: ""
@@ -18,10 +17,17 @@ class Prefs(context: Context) {
         get() = sp.getString("model", DEFAULT_MODEL) ?: DEFAULT_MODEL
         set(v) { sp.edit().putString("model", v.trim().ifEmpty { DEFAULT_MODEL }).apply() }
 
-    /** fast | balanced | quality */
     var quality: String
         get() = sp.getString("quality", "fast") ?: "fast"
         set(v) { sp.edit().putString("quality", v).apply() }
+
+    var mood: String
+        get() = sp.getString("mood", "") ?: ""
+        set(v) { sp.edit().putString("mood", v.trim()).apply() }
+
+    var translateTo: String
+        get() = sp.getString("translateTo", "") ?: ""
+        set(v) { sp.edit().putString("translateTo", v).apply() }
 
     var speed: Float
         get() = sp.getFloat("speed", 1f)
@@ -46,7 +52,6 @@ class Prefs(context: Context) {
             sp.edit().putString("voices", arr.toString()).apply()
         }
 
-    /** The voice used by "Read audio". Falls back to the first saved voice. */
     var mainVoice: String
         get() {
             val list = voices
@@ -67,7 +72,6 @@ class Prefs(context: Context) {
         get() = sp.getInt("bubbleY", -1)
         set(v) { sp.edit().putInt("bubbleY", v).apply() }
 
-    /** Double-tapping the bubble reads your latest screenshot. */
     var shotsOn: Boolean
         get() = sp.getBoolean("shotsOn", true)
         set(v) { sp.edit().putBoolean("shotsOn", v).apply() }
@@ -76,10 +80,8 @@ class Prefs(context: Context) {
         get() = sp.getString("elevenKey", "") ?: ""
         set(v) { sp.edit().putString("elevenKey", v.trim()).apply() }
 
-    /** Is the key for this voice (default: your main voice) filled in? */
     fun hasKeyFor(voiceId: String = mainVoice): Boolean = Providers.hasKey(voiceId, TtsConfig.from(this))
 
-    /** How many "What's new" entries you've already seen (so the pop-up shows once per update). */
     var seenChanges: Int
         get() = sp.getInt("seenChanges", 0)
         set(v) { sp.edit().putInt("seenChanges", v).apply() }
@@ -92,7 +94,6 @@ class Prefs(context: Context) {
 
         private val VOICE_ID = Regex("[0-9a-fA-F]{32}")
 
-        /** Accepts a fish.audio voice link or a bare ID. */
         fun extractVoiceId(s: String): String = VOICE_ID.find(s)?.value?.lowercase() ?: s.trim()
 
         fun isVoiceId(s: String): Boolean = VOICE_ID.matches(s)

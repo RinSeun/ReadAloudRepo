@@ -38,7 +38,6 @@ import android.widget.TextView
 import android.widget.Toast
 import com.lss.lotusaloud.SpeechPlayer.Phase
 
-/** Settings + status screen. */
 class MainActivity : Activity() {
     companion object {
         const val EXTRA_ASK_SCREENSHOTS = "askScreenshots"
@@ -68,7 +67,7 @@ class MainActivity : Activity() {
     private lateinit var topBar: LinearLayout
     private var historyStamp = 0L
     private var waitingForOverlay = false
-    private var settingSwitch = false // true while we update switches ourselves
+    private var settingSwitch = false
     private val pages = mutableListOf<ScrollView>()
     private val tabs = mutableListOf<TextView>()
     private var addService = Providers.FISH
@@ -124,7 +123,6 @@ class MainActivity : Activity() {
         buildTabBar(outer)
         var cur: LinearLayout
 
-        // ---- header: name + "New" pill (stays on every tab)
         val header = row(topBar, 0)
         val titles = LinearLayout(this)
         titles.orientation = LinearLayout.VERTICAL
@@ -141,7 +139,6 @@ class MainActivity : Activity() {
         newPill.setOnClickListener { showWhatsNew() }
         header.addView(newPill, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
 
-        // ---- the big glowing lotus (it gently "breathes" while reading)
         val hero = android.widget.FrameLayout(this)
         val glow = View(this)
         glow.background = GradientDrawable().apply {
@@ -158,7 +155,6 @@ class MainActivity : Activity() {
         playerPage.addView(hero, heroLp)
         heroLogo.setOnClickListener { startActivity(Intent(this, ReaderActivity::class.java)) }
 
-        // ---- Fish credit balance (tap to refresh)
         creditPill = TextView(this)
         creditPill.textSize = 13f
         creditPill.gravity = Gravity.CENTER
@@ -171,7 +167,7 @@ class MainActivity : Activity() {
         creditRow.addView(creditPill, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
         playerPage.addView(creditRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         showCredit()
-        // ---- status / controls
+
         cur = card(playerPage, "Now playing")
         statusText = label(cur, "Idle", 15f)
         val controls = row(cur)
@@ -181,7 +177,6 @@ class MainActivity : Activity() {
         stopBtn = button(controls, "Stop", 1f) { player.stop() }
         button(row(cur), "\uD83D\uDCD6 Follow along", 1f) { startActivity(Intent(this, ReaderActivity::class.java)) }
 
-        // ---- paste & read
         cur = card(playerPage, "Read text")
         val paste = edit(cur, "Paste or type text here")
         paste.setSingleLine(false)
@@ -192,13 +187,13 @@ class MainActivity : Activity() {
             if (requireKey()) ReadService.read(this, paste.text.toString())
         }
         button(row(cur), "\uD83D\uDCF7 Read a screenshot or photo", 1f) { pickImage() }
+        button(row(cur), "\uD83D\uDCC4 Read a document (PDF, Word)", 1f) { pickDocument() }
         label(
             cur,
             "Paste a webpage link to hear the article. Or take a screenshot \u2192 Share \u2192 Lotus Aloud.",
             13f,
         )
 
-        // ---- recent reads
         cur = card(playerPage, "Recent reads")
         label(cur, "Tap ▶ to hear one again. Replays are instant and free.", 13f)
         historyBox = LinearLayout(this)
@@ -206,7 +201,6 @@ class MainActivity : Activity() {
         cur.addView(historyBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         renderHistory()
 
-        // ---- Voices tab
         bigTitle(voicesPage, "Voices")
         sectionLabel(voicesPage, "MAIN VOICE")
         mainVoiceBox = LinearLayout(this)
@@ -266,13 +260,12 @@ class MainActivity : Activity() {
         refreshServices()
         label(voicesPage, "All voices are AI-generated. Hold a voice to remove it.", 12f, top = 10)
 
-        // ---- Settings tab (Samsung-style: big title, grouped rows, switches)
         bigTitle(settingsPage, "Settings")
         summaryText = buildSummaryCard(settingsPage)
 
         sectionLabel(settingsPage, "READING")
         var g = group(settingsPage)
-        // speed: big number, slider with - and +, tick marks
+
         val speedBox = LinearLayout(this)
         speedBox.orientation = LinearLayout.VERTICAL
         speedBox.setPadding(dp(20), dp(14), dp(20), dp(14))
@@ -286,7 +279,7 @@ class MainActivity : Activity() {
         speedValue.setTextColor(Color.WHITE)
         speedHead.addView(speedValue)
         val seek = SeekBar(this)
-        seek.max = 15 // 0.5x .. 2.0x in 0.1 steps
+        seek.max = 15
         seek.progress = ((prefs.speed - 0.5f) * 10).toInt().coerceIn(0, 15)
         fun showSpeed() {
             val txt = String.format("%.1fx", 0.5f + seek.progress / 10f)
@@ -317,7 +310,7 @@ class MainActivity : Activity() {
             tv.layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
         }
         divider(g)
-        // quality: three tap buttons
+
         val qBox = LinearLayout(this)
         qBox.orientation = LinearLayout.VERTICAL
         qBox.setPadding(dp(20), dp(14), dp(20), dp(16))
@@ -349,9 +342,16 @@ class MainActivity : Activity() {
         qViews.forEach { (key, t) -> t.setOnClickListener { prefs.quality = key; showQuality() } }
         showQuality()
         divider(g)
-        // fish model: tap for a picker
+
         val modelRow = settingsRow(g, "Fish model", prefs.model, valuePink = true)
         modelRow.first.setOnClickListener { pickModel(modelRow.second) }
+        divider(g)
+
+        val moodRow = settingsRow(g, "Mood", Moods.label(prefs.mood) + " \u00b7 Fish voices", valuePink = true)
+        moodRow.first.setOnClickListener { pickMood(moodRow.second) }
+        divider(g)
+        val transRow = settingsRow(g, "Translate to", translateText(), valuePink = true)
+        transRow.first.setOnClickListener { pickTranslate(transRow.second) }
 
         sectionLabel(settingsPage, "SHORTCUTS")
         g = group(settingsPage)
@@ -411,18 +411,17 @@ class MainActivity : Activity() {
                 toast("Lotus Aloud still needs “Appear on top” to show the bubble.")
             }
         } else if (prefs.bubbleOn && BubbleService.canShow(this)) {
-            BubbleService.start(this) // make sure it's running (e.g. after the phone restarts)
+            BubbleService.start(this)
         }
         updateBubbleButton()
         checkCredit(force = false)
-        // show "What's new" once after each update
+
         if (prefs.seenChanges < Changelog.ENTRIES.size) {
             prefs.seenChanges = Changelog.ENTRIES.size
             handler.post { showWhatsNew() }
         }
     }
 
-    // ------------------------------------------------------------------ Fish credit
     private fun showCredit() {
         if (!::creditPill.isInitialized) return
         val key = prefs.apiKey
@@ -449,7 +448,6 @@ class MainActivity : Activity() {
         refreshSummary()
     }
 
-    /** Asks Fish for the balance (at most every 2 minutes unless you tap the pill). */
     private fun checkCredit(force: Boolean) {
         val service = Providers.of(prefs.mainVoice)
         val key = if (service == Providers.ELEVEN) prefs.elevenKey else prefs.apiKey
@@ -473,7 +471,6 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    // ------------------------------------------------------------------ big lotus
     private fun setBreathing(on: Boolean) {
         if (!::heroLogo.isInitialized) return
         if (on && breathing == null) {
@@ -492,7 +489,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // ------------------------------------------------------------------ what's new
     private fun showWhatsNew() {
         val text = Changelog.ENTRIES.joinToString("\n\n") { e ->
             e.title + "\n" + e.items.joinToString("\n") { "\u2022 $it" }
@@ -520,7 +516,6 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
-    // ------------------------------------------------------------------ screenshots / photos
     private val pickRequest = 42
 
     private fun pickImage() {
@@ -534,9 +529,35 @@ class MainActivity : Activity() {
         }
     }
 
+    private val docRequest = 43
+
+    private fun pickDocument() {
+        if (!requireKey()) return
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("*/*")
+            .putExtra(Intent.EXTRA_MIME_TYPES, Documents.MIME_TYPES)
+        try {
+            startActivityForResult(i, docRequest)
+        } catch (e: Exception) {
+            toast("Couldn't open the file picker.")
+        }
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == docRequest && resultCode == RESULT_OK) {
+            val uri = data?.data ?: return
+            val name = Documents.displayName(this, uri)
+            val path = ImageText.copyToCache(this, uri)
+            if (path == null) toast("Couldn't open that file.")
+            else {
+                toast("Opening ${name ?: "your document"}...")
+                ReadService.readDocument(this, path, contentResolver.getType(uri), name)
+            }
+            return
+        }
         if (requestCode != pickRequest || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         val path = ImageText.copyToCache(this, uri)
@@ -548,7 +569,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // ------------------------------------------------------------------ screenshot access (bubble double-tap)
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -573,7 +593,6 @@ class MainActivity : Activity() {
         refreshSwitches()
     }
 
-    // ------------------------------------------------------------------ bubble
     private fun toggleBubble() {
         if (prefs.bubbleOn && BubbleService.canShow(this)) {
             BubbleService.stop(this)
@@ -591,7 +610,6 @@ class MainActivity : Activity() {
 
     private fun updateBubbleButton() = refreshSwitches()
 
-    /** Keeps the Settings switches in step with reality (e.g. after granting a permission). */
     private fun refreshSwitches() {
         if (::bubbleSwitch.isInitialized) {
             settingSwitch = true
@@ -601,7 +619,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // ------------------------------------------------------------------ recent reads
     private fun renderHistory() {
         if (!::historyBox.isInitialized) return
         val items = History.list(this)
@@ -630,7 +647,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // ------------------------------------------------------------------ tile
     private fun requestTile() {
         if (Build.VERSION.SDK_INT < 33) return
         val sbm = getSystemService(StatusBarManager::class.java) ?: return
@@ -652,12 +668,10 @@ class MainActivity : Activity() {
         }
     }
 
-    // ------------------------------------------------------------------ voices
     private fun renderVoices() {
         val main = prefs.mainVoice
         val voices = prefs.voices
 
-        // big "main voice" card
         mainVoiceBox.removeAllViews()
         val mv = voices.firstOrNull { it.id == main }
         val hero = LinearLayout(this)
@@ -681,7 +695,6 @@ class MainActivity : Activity() {
             if (requireKey(heroId)) ReadService.read(this, "Hi! This is how ${mv?.name ?: "this voice"} sounds.", heroId, record = false)
         }
 
-        // all voices
         voicesBox.removeAllViews()
         voices.forEachIndexed { n, v ->
             if (n > 0) divider(voicesBox)
@@ -734,8 +747,6 @@ class MainActivity : Activity() {
         showCredit()
     }
 
-    // ------------------------------------------------------------------ settings tab pieces
-    /** Big Samsung-style page title with a soft lotus glow behind it. */
     private fun bigTitle(parent: LinearLayout, text: String) {
         val box = android.widget.FrameLayout(this)
         box.background = GradientDrawable().apply {
@@ -757,7 +768,6 @@ class MainActivity : Activity() {
         parent.addView(box, lp)
     }
 
-    /** "Lotus Aloud / Main voice X - credit" card that jumps to Voices. Returns its subtitle text. */
     private fun buildSummaryCard(parent: LinearLayout): TextView {
         val c = LinearLayout(this)
         c.orientation = LinearLayout.HORIZONTAL
@@ -801,7 +811,6 @@ class MainActivity : Activity() {
         parent.addView(ch)
     }
 
-    /** A Samsung-style row: title + subtitle (or a pink value), optional chevron. Returns (row, subtitle). */
     private fun settingsRow(
         parent: LinearLayout, title: String, sub: String?, valuePink: Boolean = false, chevron: Boolean = true,
     ): Pair<LinearLayout, TextView> {
@@ -820,7 +829,6 @@ class MainActivity : Activity() {
         return r to subView
     }
 
-    /** Adds a divider + switch to the end of a row. */
     private fun switchOn(row: LinearLayout, onChange: (Boolean) -> Unit): android.widget.Switch {
         val bar = View(this)
         bar.setBackgroundColor(Color.argb(34, 255, 255, 255))
@@ -846,6 +854,74 @@ class MainActivity : Activity() {
         b.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#2C2330")) }
         b.setOnClickListener { onClick() }
         parent.addView(b, LinearLayout.LayoutParams(dp(32), dp(32)))
+    }
+
+    private fun translateText() =
+        if (prefs.translateTo.isBlank()) "Off \u00b7 reads in the original language"
+        else Translate.label(prefs.translateTo) + " \u00b7 everything is translated first"
+
+    private fun pickTranslate(valueView: TextView) {
+        val labels = Translate.LANGS.map { it.first }
+        val current = Translate.LANGS.indexOfFirst { it.second == prefs.translateTo }.coerceAtLeast(0)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Translate to")
+            .setSingleChoiceItems(labels.toTypedArray(), current) { d, i ->
+                prefs.translateTo = Translate.LANGS[i].second
+                valueView.text = translateText()
+                d.dismiss()
+                if (prefs.translateTo.isNotBlank()) {
+                    android.app.AlertDialog.Builder(this)
+                        .setTitle("Translating to ${Translate.LANGS[i].first}")
+                        .setMessage(
+                            "Everything you read will be translated first, then read out loud.\n\n" +
+                                "\u2022 Translation happens on your phone: free, and offline after the first time " +
+                                "(it downloads the language once, about 30 MB).\n\n" +
+                                "\u2022 Fish and ElevenLabs voices can speak it, including your own voice. " +
+                                "Phone voices: pick one for that language in Voices.\n\n" +
+                                "\u2022 Set this back to Off to read things as they are."
+                        )
+                        .setPositiveButton("Got it", null)
+                        .show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun pickMood(valueView: TextView) {
+        val labels = Moods.LIST.map { it.first } + "Custom..."
+        val current = Moods.LIST.indexOfFirst { it.second == prefs.mood }.let { if (it < 0) labels.size - 1 else it }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Mood (Fish voices)")
+            .setSingleChoiceItems(labels.toTypedArray(), current) { d, i ->
+                d.dismiss()
+                if (i < Moods.LIST.size) {
+                    setMood(Moods.LIST[i].second, valueView)
+                } else {
+                    val e = EditText(this)
+                    e.hint = "e.g. very excited, sleepy, pirate"
+                    e.setText(if (current == labels.size - 1) prefs.mood else "")
+                    e.setSingleLine(true)
+                    val box = LinearLayout(this)
+                    box.setPadding(dp(22), dp(8), dp(22), 0)
+                    box.addView(e, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+                    android.app.AlertDialog.Builder(this)
+                        .setTitle("Custom mood")
+                        .setMessage("Describe how it should sound, in a few words.")
+                        .setView(box)
+                        .setPositiveButton("Use it") { _, _ -> setMood(e.text.toString(), valueView) }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun setMood(cue: String, valueView: TextView) {
+        prefs.mood = cue
+        valueView.text = Moods.label(prefs.mood) + " \u00b7 Fish voices"
+        toast(if (cue.isBlank()) "Normal voice." else "Mood: ${Moods.label(prefs.mood)}. Try it with \u25b6 on a voice.")
     }
 
     private fun pickModel(valueView: TextView) {
@@ -884,7 +960,6 @@ class MainActivity : Activity() {
         ""
     }
 
-    // ------------------------------------------------------------------ voices tab pieces
     private fun serviceColor(id: String): Int = when (Providers.of(id)) {
         Providers.ELEVEN -> Color.parseColor("#B79BFF")
         Providers.PHONE -> Color.parseColor("#5EE0CF")
@@ -899,7 +974,6 @@ class MainActivity : Activity() {
 
     private fun withAlpha(c: Int, a: Int) = Color.argb(a, Color.red(c), Color.green(c), Color.blue(c))
 
-    /** A round letter badge, coloured by service. */
     private fun avatar(parent: LinearLayout, name: String, id: String, sizeDp: Int) {
         val c = serviceColor(id)
         val a = TextView(this)
@@ -952,7 +1026,6 @@ class MainActivity : Activity() {
         parent.addView(t, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
     }
 
-    /** A rounded box that holds rows. */
     private fun group(parent: LinearLayout): LinearLayout {
         val g = LinearLayout(this)
         g.orientation = LinearLayout.VERTICAL
@@ -974,7 +1047,6 @@ class MainActivity : Activity() {
         l.setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     }
 
-    /** A "connected service" row: status dot + name + status; tapping opens its key field. Returns (status text, key box). */
     private fun serviceRow(parent: LinearLayout, name: String): Pair<TextView, LinearLayout> {
         val r = LinearLayout(this)
         r.orientation = LinearLayout.HORIZONTAL
@@ -1009,7 +1081,6 @@ class MainActivity : Activity() {
         return status to box
     }
 
-    /** Green dot + "Connected" when a key is set. */
     private fun refreshServices() {
         if (!::fishStatus.isInitialized) return
         for ((status, has) in listOf(fishStatus to prefs.apiKey.isNotBlank(), elevenStatus to prefs.elevenKey.isNotBlank())) {
@@ -1018,7 +1089,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // ------------------------------------------------------------------ status
     private fun refreshStatus() {
         val s = player.snapshot()
         setBreathing(s.phase == Phase.PLAYING)
@@ -1040,14 +1110,12 @@ class MainActivity : Activity() {
         setOn(stopBtn, s.phase == Phase.LOADING || s.phase == Phase.PLAYING || s.phase == Phase.PAUSED)
     }
 
-    // ------------------------------------------------------------------ helpers
     private fun saveKey() {
         if (::apiKeyEdit.isInitialized) prefs.apiKey = apiKeyEdit.text.toString()
         if (::elevenKeyEdit.isInitialized) prefs.elevenKey = elevenKeyEdit.text.toString()
         refreshServices()
     }
 
-    /** Makes sure the key for this voice (default: your main voice) is filled in. */
     private fun requireKey(voiceId: String = prefs.mainVoice): Boolean {
         saveKey()
         if (prefs.hasKeyFor(voiceId)) return true
@@ -1059,7 +1127,6 @@ class MainActivity : Activity() {
         return false
     }
 
-    // ------------------------------------------------------------------ tabs
     private fun buildTabBar(parent: LinearLayout) {
         val bar = LinearLayout(this)
         bar.orientation = LinearLayout.HORIZONTAL
@@ -1092,7 +1159,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // ------------------------------------------------------------------ adding voices
     private fun showAddService() {
         for ((key, t) in segments) {
             val on = key == addService
@@ -1149,7 +1215,6 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Shows a list to pick from: your ElevenLabs voices, or the voices on your phone. */
     private fun pickVoice() {
         saveKey()
         if (addService == Providers.ELEVEN && prefs.elevenKey.isBlank()) {
@@ -1205,7 +1270,6 @@ class MainActivity : Activity() {
         b.alpha = if (on) 1f else 0.4f
     }
 
-    /** A rounded section with a title. */
     private fun card(parent: LinearLayout, title: String): LinearLayout {
         val c = LinearLayout(this)
         c.orientation = LinearLayout.VERTICAL
@@ -1233,7 +1297,6 @@ class MainActivity : Activity() {
         parent.addView(t, lp)
         return t
     }
-
 
     private fun row(parent: LinearLayout, top: Int = 6): LinearLayout {
         val r = LinearLayout(this)

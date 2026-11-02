@@ -23,10 +23,6 @@ import android.os.Looper
 import android.widget.Toast
 import com.lss.lotusaloud.SpeechPlayer.Phase
 
-/**
- * Keeps reading while you use other apps. Shows a media player notification and
- * works with lock-screen controls, earbuds, Bluetooth and car buttons.
- */
 class ReadService : Service() {
     companion object {
         const val ACTION_READ = "com.lss.lotusaloud.READ"
@@ -35,6 +31,9 @@ class ReadService : Service() {
         const val ACTION_BACK = "com.lss.lotusaloud.BACK10"
         const val ACTION_FWD = "com.lss.lotusaloud.FWD10"
         const val ACTION_READ_IMAGES = "com.lss.lotusaloud.READ_IMAGES"
+        const val ACTION_READ_DOC = "com.lss.lotusaloud.READ_DOC"
+        const val EXTRA_MIME = "mime"
+        const val EXTRA_NAME = "name"
         const val ACTION_NEXT_PART = "com.lss.lotusaloud.NEXT_PART"
         const val ACTION_PREV_PART = "com.lss.lotusaloud.PREV_PART"
         const val ACTION_JUMP = "com.lss.lotusaloud.JUMP"
@@ -48,7 +47,6 @@ class ReadService : Service() {
         private const val NOTIF_ID = 7
         private const val SKIP = 10.0
 
-        /** record = add it to Recent reads (not used for tests and voice samples). */
         fun read(ctx: Context, text: String, voice: String? = null, record: Boolean = true) {
             val i = Intent(ctx, ReadService::class.java).setAction(ACTION_READ)
                 .putExtra(EXTRA_TEXT, text).putExtra(EXTRA_RECORD, record)
@@ -56,14 +54,18 @@ class ReadService : Service() {
             ctx.startForegroundService(i)
         }
 
-        /** Finds the text in screenshots / photos (already copied into the app), then reads it. */
+        fun readDocument(ctx: Context, path: String, mime: String?, name: String?) {
+            val i = Intent(ctx, ReadService::class.java).setAction(ACTION_READ_DOC)
+                .putExtra(EXTRA_PATHS, arrayOf(path)).putExtra(EXTRA_MIME, mime).putExtra(EXTRA_NAME, name)
+            ctx.startForegroundService(i)
+        }
+
         fun readImages(ctx: Context, paths: List<String>) {
             val i = Intent(ctx, ReadService::class.java).setAction(ACTION_READ_IMAGES)
                 .putExtra(EXTRA_PATHS, paths.toTypedArray())
             ctx.startForegroundService(i)
         }
 
-        /** Jump to a spot: part number + how far into it (0..1). Used by the follow-along screen. */
         fun jump(ctx: Context, part: Int, fraction: Double) {
             ctx.startForegroundService(
                 Intent(ctx, ReadService::class.java).setAction(ACTION_JUMP)
@@ -89,7 +91,7 @@ class ReadService : Service() {
     private var lastDuration = -1.0
     private lateinit var session: MediaSession
     private var focusRequest: AudioFocusRequest? = null
-    /** Shown while we're preparing text (reading a screenshot, fetching an article...). */
+
     @Volatile private var preparing: String? = null
     private val tick = object : Runnable {
         override fun run() = update()
@@ -112,7 +114,7 @@ class ReadService : Service() {
             override fun onSeekTo(pos: Long) { player.seekTo(pos / 1000.0); update() }
             override fun onFastForward() { player.skip(SKIP); update() }
             override fun onRewind() { player.skip(-SKIP); update() }
-            // earbud double / triple tap: next / previous part (or 10 s when there's only one part)
+
             override fun onSkipToNext() { if (ReadSession.count > 1) nextPart() else player.skip(SKIP); update() }
             override fun onSkipToPrevious() { if (ReadSession.count > 1) prevPart() else player.skip(-SKIP); update() }
             override fun onCustomAction(action: String, extras: Bundle?) {
@@ -125,7 +127,6 @@ class ReadService : Service() {
         })
         session.setSessionActivity(openAppIntent())
 
-        // when a part finishes, carry straight on with the next one
         player.onEnded = {
             handler.post {
                 if (ReadSession.hasNext) playPart(ReadSession.index + 1)
@@ -156,6 +157,31 @@ class ReadService : Service() {
                             update()
                         }
                     }, "lotus-ocr").start()
+                }
+            }
+            ACTION_READ_DOC -> {
+                val path = intent.getStringArrayExtra(EXTRA_PATHS)?.firstOrNull()
+                val mime = intent.getStringExtra(EXTRA_MIME)
+                val name = intent.getStringExtra(EXTRA_NAME)
+                if (path != null) {
+                    player.stop()
+                    preparing = "Opening ${name ?: "your document"}..."
+                    update()
+                    Thread({
+                        val result = try {
+                            Result.success(Documents.extract(this, path, mime, name) { page, total ->
+                                handler.post { preparing = "Reading page $page of $total..."; update() }
+                            })
+                        } catch (e: Exception) {
+                            Result.failure(e)
+                        }
+                        handler.post {
+                            preparing = null
+                            result.onSuccess { startText(it.text, null, true, it.title) }
+                                .onFailure { player.showError((it as? ProviderError)?.message ?: "Couldn't read that document.") }
+                            update()
+                        }
+                    }, "lotus-doc").start()
                 }
             }
             ACTION_NEXT_PART -> nextPart()
@@ -190,7 +216,7 @@ class ReadService : Service() {
             player.showError(Providers.missingKeyText(voiceToUse))
             return
         }
-        // A webpage link? Fetch the article and read that instead.
+
         val link = Article.linkIn(raw)
         if (link != null) {
             player.stop()
@@ -210,6 +236,29 @@ class ReadService : Service() {
     }
 
     private fun startText(raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?) {
+        val target = Prefs(this).translateTo
+        if (target.isBlank()) return startTextNow(raw, voiceOverride, record, titleOverride)
+        player.stop()
+        preparing = "Translating to ${Translate.label(target)}..."
+        update()
+        Thread({
+            val result = try {
+                Result.success(Translate.translate(TextCleaner.clean(raw), target) { msg ->
+                    handler.post { preparing = msg; update() }
+                })
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            handler.post {
+                preparing = null
+                result.onSuccess { startTextNow(it, voiceOverride, record, titleOverride) }
+                    .onFailure { player.showError((it as? ProviderError)?.message ?: "Couldn't translate that.") }
+                update()
+            }
+        }, "lotus-translate").start()
+    }
+
+    private fun startTextNow(raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?) {
         val prefs = Prefs(this)
         val text = TextCleaner.clean(raw)
         val voice = voiceOverride ?: prefs.mainVoice
@@ -225,7 +274,6 @@ class ReadService : Service() {
         playPart(0)
     }
 
-    /** Plays one part, and quietly prepares the next one so there's no gap. */
     private fun playPart(i: Int) {
         val parts = ReadSession.parts
         if (i !in parts.indices) return
@@ -236,7 +284,7 @@ class ReadService : Service() {
         player.setSpeed(prefs.speed)
         val cfg = TtsConfig.from(prefs)
         val voice = ReadSession.voice
-        // the next three parts are prepared once this one's audio is coming in, so they don't slow the start down
+
         val ahead = (i + 1..i + 3).mapNotNull { parts.getOrNull(it) }
         player.speak(parts[i], voice, cfg, quickStart = i == 0) { ahead.forEach { player.prefetch(it, voice, cfg) } }
         handler.removeCallbacks(tick)
@@ -247,7 +295,7 @@ class ReadService : Service() {
 
     private fun prevPart() {
         val s = player.snapshot()
-        // like a music player: back to the start of this part, or the previous part if we're near the start
+
         if (s.current > 3.0 || !ReadSession.hasPrev) {
             if (s.phase == Phase.PLAYING || s.phase == Phase.PAUSED) player.seekTo(0.0) else playPart(ReadSession.index)
         } else {
@@ -263,7 +311,6 @@ class ReadService : Service() {
         super.onDestroy()
     }
 
-    // ------------------------------------------------------------------ audio focus (pauses for calls etc.)
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
             AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> player.pause()
@@ -291,7 +338,6 @@ class ReadService : Service() {
         focusRequest = null
     }
 
-    // ------------------------------------------------------------------ updates
     private fun update() {
         val s = player.snapshot()
         val now = System.currentTimeMillis()
@@ -363,7 +409,6 @@ class ReadService : Service() {
         }
     }
 
-    /** Tapping the notification opens the follow-along screen. */
     private fun openAppIntent(): PendingIntent = PendingIntent.getActivity(
         this, 0, Intent(this, ReaderActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )

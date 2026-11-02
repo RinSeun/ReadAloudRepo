@@ -6,7 +6,6 @@ import org.json.JSONObject
 
 data class HistoryItem(val text: String, val voice: String, val time: Long)
 
-/** Your recent reads, newest first. Replaying one is instant and free (the audio is kept on the phone). */
 object History {
     private const val MAX = 15
     private const val KEY = "history"

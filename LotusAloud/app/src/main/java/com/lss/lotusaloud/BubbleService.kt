@@ -27,11 +27,6 @@ import android.widget.ImageView
 import android.widget.Toast
 import kotlin.math.abs
 
-/**
- * Floating lotus bubble shown over every app.
- * Copy text anywhere (Opera, Messenger...), then tap the bubble to read it.
- * Tap while reading = stop. Drag to move. Long-press = open Lotus Aloud.
- */
 class BubbleService : Service() {
     companion object {
         private const val CHANNEL = "bubble"
@@ -68,7 +63,7 @@ class BubbleService : Service() {
                 else -> Color.TRANSPARENT
             }
             ring.setStroke(dp(3), color)
-            // check often only while something is happening; otherwise barely at all (saves battery)
+
             handler.postDelayed(this, if (color == Color.TRANSPARENT) 2000 else 400)
         }
     }
@@ -179,7 +174,7 @@ class BubbleService : Service() {
         container.setOnTouchListener { v, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    Providers.warmUp(this) // get the connection ready while your finger is still down
+                    Providers.warmUp(this)
                     downX = e.rawX; downY = e.rawY
                     startX = lp.x; startY = lp.y
                     dragging = false; longPressed = false
@@ -203,7 +198,6 @@ class BubbleService : Service() {
                     handler.removeCallbacks(longPress)
                     v.alpha = 0.92f
                     if (dragging) {
-                        // snap to the nearest side
                         lp.x = if (lp.x + size / 2 < screenW / 2) dp(4) else screenW - size - dp(4)
                         try { w.updateViewLayout(v, lp) } catch (ex: Exception) {}
                         prefs.bubbleX = lp.x
@@ -225,9 +219,6 @@ class BubbleService : Service() {
         }
     }
 
-    // ------------------------------------------------------------------ taps
-    // One tap = read what you copied. Two quick taps = read your latest screenshot.
-    // Any tap while reading = stop.
     private var waitingForSecondTap = false
     private val singleTap = Runnable {
         waitingForSecondTap = false
@@ -235,7 +226,7 @@ class BubbleService : Service() {
     }
 
     private fun onTap() {
-        if (!Prefs(this).shotsOn) { // double-tap turned off: react straight away
+        if (!Prefs(this).shotsOn) {
             if (player.isBusy()) player.stop() else readClipboard()
             return
         }
@@ -256,7 +247,6 @@ class BubbleService : Service() {
     }
 
     private fun readClipboard() {
-        // a tiny invisible screen grabs the clipboard, then closes
         startActivity(Intent(this, ClipReadActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 

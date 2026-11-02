@@ -5,11 +5,6 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.widget.Toast
 
-/**
- * Invisible screen opened by the "Lotus Read" Quick Settings tile.
- * Android only lets an app read the clipboard while one of its windows has focus,
- * so this briefly takes focus, reads what you copied, starts reading it, and closes.
- */
 class ClipReadActivity : Activity() {
     private var handled = false
 

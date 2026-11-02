@@ -5,11 +5,9 @@ import org.jsoup.nodes.Element
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Turns a webpage link into readable article text (title + paragraphs, no menus or ads). */
 object Article {
     private val URL_RE = Regex("https?://[^\\s<>\"']+")
 
-    /** If the text is basically just a link (maybe with a title), returns that link. */
     fun linkIn(text: String): String? {
         val t = text.trim()
         val urls = URL_RE.findAll(t).map { it.value.trimEnd('.', ',', ')', ']') }.toList()
@@ -20,12 +18,10 @@ object Article {
 
     class Result(val title: String, val text: String)
 
-    /** Downloads and extracts the article. Runs on a background thread. Throws with a friendly message. */
     fun fetch(link: String): Result {
         var url = link
         var conn: HttpURLConnection? = null
         try {
-            // follow redirects ourselves (Android won't follow http -> https on its own)
             for (hop in 0 until 6) {
                 val c = URL(url).openConnection() as HttpURLConnection
                 c.instanceFollowRedirects = false
@@ -81,7 +77,6 @@ object Article {
         }
     }
 
-    /** The block with the most paragraph text directly inside it. */
     private fun bestContainer(doc: Element): Element? {
         var best: Element? = null
         var bestScore = 0

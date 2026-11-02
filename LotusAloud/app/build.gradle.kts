@@ -3,7 +3,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// GitHub numbers each automatic build, so every new APK installs as an update.
 val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
 
 android {
@@ -11,7 +10,6 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        // Keep this ID forever: it is how Android knows Lotus Aloud updates the app you already have.
         applicationId = "com.lss.fishreader"
         minSdk = 26
         targetSdk = 34
@@ -19,8 +17,6 @@ android {
         versionName = "1.0.$buildNumber"
     }
 
-    // A fixed signing key (in this folder) so new versions install over old ones.
-    // Its password/alias are baked into the key file - leave them as they are.
     signingConfigs {
         create("release") {
             storeFile = file("lotusaloud.keystore")
@@ -50,8 +46,9 @@ android {
 }
 
 dependencies {
-    // Finds text in screenshots and photos, on the phone (offline, free)
     implementation("com.google.mlkit:text-recognition:16.0.1")
-    // Pulls the article text out of webpages (for reading links)
+    implementation("com.google.mlkit:translate:17.0.3")
+    implementation("com.google.mlkit:language-id:17.0.6")
+
     implementation("org.jsoup:jsoup:1.17.2")
 }

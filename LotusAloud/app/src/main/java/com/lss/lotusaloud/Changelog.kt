@@ -1,13 +1,27 @@
 package com.lss.lotusaloud
 
-/**
- * The "What's new" notes shown in the app. Newest first.
- * When you add a feature, add a new entry at the top - the pop-up then shows once after that update.
- */
 object Changelog {
     data class Entry(val title: String, val items: List<String>)
 
     val ENTRIES = listOf(
+        Entry(
+            "\uD83C\uDF0D Translate & read",
+            listOf(
+                "Settings \u2192 Translate to: pick a language and everything you read is translated first, then read out loud.",
+                "Translation happens on your phone: free, no credit, and offline after a one-time download per language (about 30 MB).",
+                "It works out what language the text is in by itself, and skips translating if it's already in your language.",
+                "Fish and ElevenLabs voices can speak other languages, so you can hear your own voice in Spanish, Japanese and more.",
+            ),
+        ),
+        Entry(
+            "\uD83D\uDCC4 Documents & \uD83C\uDFAD moods",
+            listOf(
+                "Read PDFs, Word (.docx) and text files: share one to Lotus Aloud, open a PDF with it, or tap \u201cRead a document\u201d in the app.",
+                "Scanned PDFs work too: pages are read on your phone (free, no credit), and page numbers and headers are skipped.",
+                "Moods for Fish voices: Settings \u2192 Mood. Calm, happy, excited, whispering, sad, sarcastic and more, or type your own.",
+                "Parts are now a bit smaller later on, so long reads keep up better.",
+            ),
+        ),
         Entry(
             "\u26A1 Starts reading faster, no more waiting between parts",
             listOf(

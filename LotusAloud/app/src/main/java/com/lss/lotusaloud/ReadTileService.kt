@@ -7,12 +7,7 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.lss.lotusaloud.SpeechPlayer.Phase
 
-/**
- * "Lotus Read" tile in the swipe-down Quick Settings panel.
- * Tap: reads whatever you copied. Tap while reading: stops.
- */
 class ReadTileService : TileService() {
-
     private fun isBusy(): Boolean {
         val p = SpeechPlayer.shared.snapshot().phase
         return p == Phase.LOADING || p == Phase.PLAYING || p == Phase.PAUSED

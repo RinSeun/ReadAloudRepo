@@ -7,19 +7,34 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 
-/**
- * Invisible screen behind "Read audio" in the text-selection menu, and "Lotus Aloud" in the
- * Share menu (text, screenshots and photos). Hands the content to the reading service and closes.
- */
 class ReadActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val i = intent
         val isImage = i?.type?.startsWith("image/") == true
 
+        val docUri: Uri? = when (i?.action) {
+            Intent.ACTION_VIEW -> i.data
+            Intent.ACTION_SEND -> if (!isImage && i.getCharSequenceExtra(Intent.EXTRA_TEXT).isNullOrBlank()) imageUris(i).firstOrNull() else null
+            else -> null
+        }
+
         if (!Prefs(this).hasKeyFor()) {
             Toast.makeText(this, Providers.missingKeyText(Prefs(this).mainVoice), Toast.LENGTH_LONG).show()
             startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            finish()
+            return
+        }
+
+        if (docUri != null) {
+            val name = Documents.displayName(this, docUri)
+            val path = ImageText.copyToCache(this, docUri)
+            if (path == null) {
+                Toast.makeText(this, "Couldn't open that file.", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Opening ${name ?: "your document"}...", Toast.LENGTH_SHORT).show()
+                ReadService.readDocument(this, path, i?.type, name)
+            }
             finish()
             return
         }

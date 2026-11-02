@@ -13,14 +13,12 @@ import java.net.URL
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** Settings a voice service needs for one request. */
-data class TtsConfig(val fishKey: String, val elevenKey: String, val fishModel: String, val quality: String) {
+data class TtsConfig(val fishKey: String, val elevenKey: String, val fishModel: String, val quality: String, val mood: String = "") {
     companion object {
-        fun from(p: Prefs) = TtsConfig(p.apiKey, p.elevenKey, p.model, p.quality)
+        fun from(p: Prefs) = TtsConfig(p.apiKey, p.elevenKey, p.model, p.quality, p.mood)
     }
 }
 
-/** Where the audio for one clip comes from: a live stream, or finished audio. Always 16-bit mono PCM. */
 sealed class AudioSource(val rate: Int) {
     class Stream(rate: Int, val input: InputStream, val conn: HttpURLConnection) : AudioSource(rate)
     class Bytes(rate: Int, val data: ByteArray) : AudioSource(rate)
@@ -28,12 +26,6 @@ sealed class AudioSource(val rate: Int) {
 
 class ProviderError(message: String) : Exception(message)
 
-/**
- * The voice services Lotus Aloud can use. A voice ID says which one it belongs to:
- *   "19beff07..."        Fish Audio (no prefix - this is how all older voices are stored)
- *   "eleven:21m00Tcm..."  ElevenLabs
- *   "phone:en-us-x-..."   the phone's built-in voices ("phone:" alone = the phone's default voice)
- */
 object Providers {
     const val FISH = "fish"
     const val ELEVEN = "eleven"
@@ -53,7 +45,6 @@ object Providers {
         else -> "Fish"
     }
 
-    /** Is the key this voice needs filled in? */
     fun hasKey(voiceId: String, cfg: TtsConfig): Boolean = when (of(voiceId)) {
         ELEVEN -> cfg.elevenKey.isNotBlank()
         PHONE -> true
@@ -67,23 +58,20 @@ object Providers {
 
     private fun elevenModel(quality: String) = if (quality == "fast") "eleven_flash_v2_5" else "eleven_multilingual_v2"
 
-    /** Identifies one exact piece of audio, so we can keep it on the phone and replay it for free. */
     fun cacheKey(text: String, voiceId: String, cfg: TtsConfig): String = when (of(voiceId)) {
         ELEVEN -> "eleven|${elevenModel(cfg.quality)}|$voiceId|$text"
         PHONE -> "phone|$voiceId|$text"
-        else -> cfg.fishModel + "|" + SpeechPlayer.buildBody(text, voiceId, cfg.quality).toString()
+        else -> cfg.fishModel + "|" + SpeechPlayer.buildBody(Moods.tag(text, cfg.mood, cfg.fishModel), voiceId, cfg.quality).toString()
     }
 
-    /** Starts getting audio for the text. Runs on a background thread. Throws ProviderError with a friendly message. */
     fun open(ctx: Context, text: String, voiceId: String, cfg: TtsConfig): AudioSource = when (of(voiceId)) {
         ELEVEN -> openEleven(text, rawId(voiceId), cfg)
         PHONE -> PhoneTts.synthesize(ctx, text, rawId(voiceId))
         else -> openFish(text, voiceId, cfg)
     }
 
-    // ------------------------------------------------------------------ Fish Audio
     private fun openFish(text: String, voiceId: String, cfg: TtsConfig): AudioSource {
-        val body = SpeechPlayer.buildBody(text, voiceId, cfg.quality)
+        val body = SpeechPlayer.buildBody(Moods.tag(text, cfg.mood, cfg.fishModel), voiceId, cfg.quality)
         val c = withRetry {
             post(SpeechPlayer.API_URL, body.toString()) {
                 it.setRequestProperty("Authorization", "Bearer ${cfg.fishKey.trim()}")
@@ -99,8 +87,7 @@ object Providers {
         return AudioSource.Stream(SpeechPlayer.FISH_RATE, c.inputStream, c)
     }
 
-    // ------------------------------------------------------------------ ElevenLabs
-    private const val ELEVEN_RATE = 24000 // raw PCM at 24 kHz works on every ElevenLabs plan
+    private const val ELEVEN_RATE = 24000
 
     private fun openEleven(text: String, voice: String, cfg: TtsConfig): AudioSource {
         val body = JSONObject().put("text", text).put("model_id", elevenModel(cfg.quality))
@@ -123,7 +110,6 @@ object Providers {
         return AudioSource.Stream(ELEVEN_RATE, c.inputStream, c)
     }
 
-    /** Your ElevenLabs voices (name to ID). */
     fun elevenVoices(key: String): List<Pair<String, String>> {
         val c = get("https://api.elevenlabs.io/v1/voices") { it.setRequestProperty("xi-api-key", key.trim()) }
         try {
@@ -140,7 +126,6 @@ object Providers {
         }
     }
 
-    /** Characters left this month on ElevenLabs. */
     fun elevenCharactersLeft(key: String): Long {
         val c = get("https://api.elevenlabs.io/v1/user/subscription") { it.setRequestProperty("xi-api-key", key.trim()) }
         try {
@@ -153,11 +138,6 @@ object Providers {
         }
     }
 
-    // ------------------------------------------------------------------ http helpers
-    /**
-     * "Too many at once" (429 - e.g. several parts being prepared together on a free account):
-     * wait a moment and try again instead of failing.
-     */
     private fun withRetry(request: () -> HttpURLConnection): HttpURLConnection {
         var wait = 400L
         repeat(5) {
@@ -171,13 +151,8 @@ object Providers {
         return request()
     }
 
-    // ------------------------------------------------------------------ warm-up
     @Volatile private var lastWarm = 0L
 
-    /**
-     * Opens the connection to the main voice's service ahead of time (address lookup + secure
-     * handshake), so the real request a moment later starts sooner. Cheap, and at most once a minute.
-     */
     fun warmUp(ctx: Context) {
         val now = System.currentTimeMillis()
         if (now - lastWarm < 60_000) return
@@ -203,7 +178,6 @@ object Providers {
         }, "lotus-warm").start()
     }
 
-    /** A small request whose connection is kept open for reuse (read fully, not disconnected). */
     private fun touch(url: String, headers: (HttpURLConnection) -> Unit) {
         val c = get(url, headers)
         val code = c.responseCode
@@ -237,17 +211,14 @@ object Providers {
     }
 }
 
-/** The phone's own text-to-speech voices (free, offline). */
 object PhoneTts {
     private var tts: TextToSpeech? = null
     private val useLock = Object()
 
-    /** Starts the phone's speech engine early so the first read doesn't wait for it. */
     fun warm(ctx: Context) {
         try { engine(ctx) } catch (e: Exception) {}
     }
 
-    /** Starts the phone's speech engine (once) and waits until it's ready. */
     private fun engine(ctx: Context): TextToSpeech {
         tts?.let { return it }
         val ready = CountDownLatch(1)
@@ -266,7 +237,6 @@ object PhoneTts {
         return created!!
     }
 
-    /** Installed voices: (display name, voice name). */
     fun voices(ctx: Context): List<Pair<String, String>> {
         val e = engine(ctx)
         return (e.voices ?: emptySet())
@@ -285,7 +255,7 @@ object PhoneTts {
         } else {
             e.defaultVoice?.let { e.voice = it }
         }
-        e.setSpeechRate(1f) // speed is applied by our player
+        e.setSpeechRate(1f)
         val out = File(ctx.cacheDir, "phone_tts.wav")
         out.delete()
         val done = CountDownLatch(1)
@@ -307,7 +277,6 @@ object PhoneTts {
     }
 }
 
-/** Reads a WAV file into 16-bit mono PCM. */
 object Wav {
     fun read(b: ByteArray): AudioSource.Bytes {
         fun u16(i: Int) = (b[i].toInt() and 0xff) or ((b[i + 1].toInt() and 0xff) shl 8)

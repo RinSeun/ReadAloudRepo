@@ -26,10 +26,6 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.lss.lotusaloud.SpeechPlayer.Phase
 
-/**
- * Follow-along screen: shows the text being read, highlights the current sentence,
- * and lets you tap any sentence to jump there.
- */
 class ReaderActivity : Activity() {
     private val accent = Color.parseColor("#FA1E4E")
     private val bgColor = Color.parseColor("#120E14")
@@ -70,7 +66,6 @@ class ReaderActivity : Activity() {
         root.setBackgroundColor(bgColor)
         setContentView(root)
 
-        // ---- top bar
         val top = LinearLayout(this)
         top.orientation = LinearLayout.HORIZONTAL
         top.gravity = Gravity.CENTER_VERTICAL
@@ -93,7 +88,6 @@ class ReaderActivity : Activity() {
             if (follow) scrollToCurrent(force = true)
         }
 
-        // ---- the text
         scroll = ScrollView(this)
         body = TextView(this)
         body.setTextColor(dimColor)
@@ -103,7 +97,7 @@ class ReaderActivity : Activity() {
         body.movementMethod = LinkMovementMethod.getInstance()
         body.highlightColor = Color.TRANSPARENT
         scroll.addView(body)
-        // remember when *you* touch the text, so auto-scroll doesn't fight you
+
         scroll.setOnTouchListener { _, e ->
             if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN || e.actionMasked == android.view.MotionEvent.ACTION_MOVE) {
                 lastUserScroll = System.currentTimeMillis()
@@ -112,7 +106,6 @@ class ReaderActivity : Activity() {
         }
         root.addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
 
-        // ---- controls
         val panel = LinearLayout(this)
         panel.orientation = LinearLayout.VERTICAL
         panel.background = GradientDrawable().apply {
@@ -147,7 +140,6 @@ class ReaderActivity : Activity() {
         super.onPause()
     }
 
-    // ------------------------------------------------------------------ building the text
     private fun rebuild() {
         builtVersion = ReadSession.version
         current = -1
@@ -178,7 +170,7 @@ class ReaderActivity : Activity() {
         list.forEachIndexed { i, sen ->
             span.setSpan(object : ClickableSpan() {
                 override fun onClick(widget: View) = jumpTo(i)
-                override fun updateDrawState(ds: TextPaint) {} // keep normal look (no underline)
+                override fun updateDrawState(ds: TextPaint) {}
             }, sen.start, sen.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         body.setText(span, TextView.BufferType.SPANNABLE)
@@ -193,7 +185,6 @@ class ReaderActivity : Activity() {
         followBtn.alpha = 1f
     }
 
-    // ------------------------------------------------------------------ live highlight
     private fun refresh() {
         if (builtVersion != ReadSession.version) rebuild()
         val s = player.snapshot()
@@ -215,12 +206,11 @@ class ReaderActivity : Activity() {
         prevBtn.alpha = if (count > 1) 1f else 0.35f
         nextBtn.alpha = if (ReadSession.hasNext) 1f else 0.35f
 
-        // where are we? Speech runs at a fairly even pace, so time tells us roughly how far into the part we are.
         val part = ReadSession.parts.getOrNull(idx) ?: return
         val fraction = when {
             s.phase == Phase.ENDED -> 1.0
             s.duration > 0 && !s.streaming -> (s.current / s.duration).coerceIn(0.0, 1.0)
-            else -> (s.current * 14.5 / part.length.coerceAtLeast(1)).coerceIn(0.0, 0.98) // ~14.5 characters a second
+            else -> (s.current * 14.5 / part.length.coerceAtLeast(1)).coerceIn(0.0, 0.98)
         }
         val busy = s.phase == Phase.PLAYING || s.phase == Phase.PAUSED || s.phase == Phase.LOADING || s.phase == Phase.ENDED
         val target = if (!busy) -1 else {
@@ -236,11 +226,11 @@ class ReaderActivity : Activity() {
     }
 
     private fun highlight(partIdx: Int) {
-        val text = body.text as? android.text.Spannable ?: return // edits show up straight away
+        val text = body.text as? android.text.Spannable ?: return
         text.getSpans(0, text.length, ForegroundColorSpan::class.java).forEach { text.removeSpan(it) }
         text.getSpans(0, text.length, BackgroundColorSpan::class.java).forEach { text.removeSpan(it) }
         text.getSpans(0, text.length, StyleSpan::class.java).forEach { text.removeSpan(it) }
-        // the current part reads brighter than the rest
+
         val inPart = sentences.filter { it.part == partIdx }
         if (inPart.isNotEmpty()) {
             text.setSpan(ForegroundColorSpan(textColor), inPart.first().start, inPart.last().end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -253,7 +243,7 @@ class ReaderActivity : Activity() {
 
     private fun scrollToCurrent(force: Boolean) {
         if (!follow) return
-        if (!force && System.currentTimeMillis() - lastUserScroll < 4000) return // you're looking around - don't yank the view
+        if (!force && System.currentTimeMillis() - lastUserScroll < 4000) return
         val sen = sentences.getOrNull(current) ?: return
         body.post {
             val layout = body.layout ?: return@post
@@ -263,7 +253,6 @@ class ReaderActivity : Activity() {
         }
     }
 
-    // ------------------------------------------------------------------ helpers
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun dp(v: Float) = v * resources.displayMetrics.density
 

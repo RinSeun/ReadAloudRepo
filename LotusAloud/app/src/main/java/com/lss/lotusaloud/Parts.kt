@@ -1,11 +1,5 @@
 package com.lss.lotusaloud
 
-/**
- * Splits long text into parts so reading starts fast and you can jump part by part.
- * Parts ramp up in size gently: a tiny first part (audio starts almost at once), then each
- * part a bit bigger, so the next one is always ready before the current one ends. Splits happen between
- * sentences, never mid-sentence.
- */
 object Parts {
     private val LIMITS = intArrayOf(170, 320, 550, 750, 900)
     private val SENTENCE_END = Regex("(?<=[.!?\\u2026])\\s+")
