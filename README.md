@@ -98,27 +98,5 @@ or the phone's **free built-in voices**.
 
 ---
 
-## 🛠 Install & update
-
-**First time** (about 10 minutes, no Android Studio needed):
-
-1. Put this folder in a **private** GitHub repo, with the build file at
-   **`.github/workflows/blank.yml`** at the top of the repo.
-2. GitHub builds the app automatically. Wait for the green ✓ in **Actions**.
-3. On your phone: open the repo on github.com → **Releases** → newest → **LotusAloud.apk** → install.
-   - Samsung **Auto Blocker** may block it: Settings → Security and privacy → Auto Blocker → off.
-   - Play Protect "unknown app": **More details → Install anyway**.
-4. Open Lotus Aloud. It starts with your phone's free voice. Add Fish or ElevenLabs under **Voices** whenever you like.
-
-**Updating:** replace the files in your local repo folder → GitHub Desktop **Commit** → **Push** → install the new APK
-from Releases over the old one. Your settings are kept, and **What's new** shows what changed.
-
----
-
-## ⚠️ Keep in mind
-
-- Keep this repo **private**: it contains the app's signing key (`app/lotusaloud.keystore`).
-- Never change `applicationId` (`com.lss.fishreader`) or the keystore, or updates won't install over your current app.
-- Only one build file should be in `.github/workflows/` at the top of the repo.
 
 <p align="center"><sub>🪷 Lotus Aloud · Made for LSS Only · Lotus Shield Studio</sub></p>
