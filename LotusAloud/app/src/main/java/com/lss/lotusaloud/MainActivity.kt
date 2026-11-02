@@ -385,6 +385,18 @@ class MainActivity : Activity() {
                 .show()
         }
 
+        sectionLabel(settingsPage, "CLEANER READING")
+        g = group(settingsPage)
+        val skipRow = settingsRow(g, "Smart skipping", skipText(), chevron = false)
+        val skipSwitch = switchOn(skipRow.first) { on -> prefs.smartSkip = on; skipRow.second.text = skipText() }
+        settingSwitch = true
+        skipSwitch.isChecked = prefs.smartSkip
+        settingSwitch = false
+        skipRow.first.setOnClickListener { pickSkips(skipRow.second) }
+        divider(g)
+        val sayRow = settingsRow(g, "Pronunciation", sayText())
+        sayRow.first.setOnClickListener { showSayRules(sayRow.second) }
+
         sectionLabel(settingsPage, "SHORTCUTS")
         g = group(settingsPage)
         val bubbleRow = settingsRow(g, "Lotus bubble", "Tap it to read copied text", chevron = false)
@@ -1145,6 +1157,103 @@ class MainActivity : Activity() {
                 .setPositiveButton("Got it", null)
                 .show()
         }
+    }
+
+    private fun skipText(): String {
+        if (!prefs.smartSkip) return "Off \u00b7 reads everything"
+        val on = listOfNotNull(
+            "headers & page numbers".takeIf { prefs.skipHeaders },
+            "citations".takeIf { prefs.skipCitations },
+            "links".takeIf { prefs.skipLinks },
+            "reference lists".takeIf { prefs.skipRefs },
+        )
+        return if (on.isEmpty()) "On \u00b7 nothing selected" else "Skips " + on.joinToString(", ") + " \u00b7 tap to choose"
+    }
+
+    private fun pickSkips(valueView: TextView) {
+        val labels = arrayOf(
+            "Headers, footers & page numbers (repeated on every page)",
+            "Citations like [12] or (Smith et al., 2020)",
+            "Long links, DOIs and email addresses",
+            "The reference list at the end",
+        )
+        val checked = booleanArrayOf(prefs.skipHeaders, prefs.skipCitations, prefs.skipLinks, prefs.skipRefs)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Smart skipping")
+            .setMultiChoiceItems(labels, checked) { _, i, on -> checked[i] = on }
+            .setPositiveButton("Save") { _, _ ->
+                prefs.skipHeaders = checked[0]
+                prefs.skipCitations = checked[1]
+                prefs.skipLinks = checked[2]
+                prefs.skipRefs = checked[3]
+                valueView.text = skipText()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun sayText(): String {
+        val n = prefs.sayRules.size
+        return if (n == 0) "Teach it how to say names and words" else "$n word${if (n == 1) "" else "s"} \u00b7 tap to edit"
+    }
+
+    /** Your pronunciation list: tap a word to edit it, + to add one. */
+    private fun showSayRules(valueView: TextView) {
+        val rules = prefs.sayRules
+        val items = rules.map { "${it.word}  \u2192  ${it.sayAs}" }.toTypedArray()
+        val b = android.app.AlertDialog.Builder(this)
+            .setTitle("Pronunciation")
+            .setPositiveButton("+ Add word") { _, _ -> editSayRule(null, valueView) }
+            .setNegativeButton("Close", null)
+        if (items.isEmpty()) {
+            b.setMessage(
+                "Teach Lotus Aloud how to say things it gets wrong.\n\n" +
+                    "For example:\n\u2022 LSS \u2192 L S S\n\u2022 OutBreak \u2192 Out Break\n\u2022 gif \u2192 jif\n\n" +
+                    "It works with every voice, and Follow along still shows the original word."
+            )
+        } else {
+            b.setItems(items) { _, i -> editSayRule(rules[i], valueView) }
+        }
+        b.show()
+    }
+
+    private fun editSayRule(rule: SayRule?, valueView: TextView) {
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.setPadding(dp(22), dp(8), dp(22), 0)
+        val word = edit(box, "Word or phrase (e.g. LSS)", rule?.word ?: "")
+        val say = edit(box, "Say it like (e.g. L S S)", rule?.sayAs ?: "")
+        val dlg = android.app.AlertDialog.Builder(this)
+            .setTitle(if (rule == null) "Add a word" else "Edit \u201c${rule.word}\u201d")
+            .setView(box)
+            .setPositiveButton("Save", null)
+            .setNeutralButton("\u25B6 Test", null)
+            .setNegativeButton(if (rule == null) "Cancel" else "Delete") { _, _ ->
+                if (rule != null) {
+                    prefs.sayRules = prefs.sayRules.filterNot { it == rule }
+                    valueView.text = sayText()
+                    toast("Removed \u201c${rule.word}\u201d.")
+                }
+            }
+            .create()
+        dlg.setOnShowListener {
+            dlg.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val w = word.text.toString().trim()
+                val s = say.text.toString().trim()
+                if (w.isEmpty() || s.isEmpty()) { toast("Fill in both boxes."); return@setOnClickListener }
+                val list = prefs.sayRules.filterNot { it == rule || it.word.equals(w, ignoreCase = true) } + SayRule(w, s)
+                prefs.sayRules = list
+                valueView.text = sayText()
+                toast("Saved: \u201c$w\u201d is said \u201c$s\u201d.")
+                dlg.dismiss()
+            }
+            dlg.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                val s = say.text.toString().trim()
+                if (s.isEmpty()) toast("Type how it should sound first.")
+                else if (requireKey()) ReadService.read(this, s, record = false)
+            }
+        }
+        dlg.show()
     }
 
     private fun savedText(): String {

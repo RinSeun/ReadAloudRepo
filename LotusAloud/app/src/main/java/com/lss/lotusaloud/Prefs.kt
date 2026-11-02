@@ -52,6 +52,37 @@ class Prefs(context: Context) {
     val recentLangs: List<String>
         get() = (sp.getString("recentLangs", "") ?: "").split(",").filter { it.isNotBlank() }
 
+    var smartSkip: Boolean
+        get() = sp.getBoolean("smartSkip", true)
+        set(v) { sp.edit().putBoolean("smartSkip", v).apply() }
+    var skipHeaders: Boolean
+        get() = sp.getBoolean("skipHeaders", true)
+        set(v) { sp.edit().putBoolean("skipHeaders", v).apply() }
+    var skipCitations: Boolean
+        get() = sp.getBoolean("skipCitations", true)
+        set(v) { sp.edit().putBoolean("skipCitations", v).apply() }
+    var skipLinks: Boolean
+        get() = sp.getBoolean("skipLinks", true)
+        set(v) { sp.edit().putBoolean("skipLinks", v).apply() }
+    var skipRefs: Boolean
+        get() = sp.getBoolean("skipRefs", true)
+        set(v) { sp.edit().putBoolean("skipRefs", v).apply() }
+
+    var sayRules: List<SayRule>
+        get() = try {
+            val arr = JSONArray(sp.getString("sayRules", "[]"))
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                SayRule(o.optString("w"), o.optString("s"))
+            }.filter { it.word.isNotBlank() }
+        } catch (e: Exception) { emptyList() }
+        set(list) {
+            val arr = JSONArray()
+            list.forEach { arr.put(JSONObject().put("w", it.word).put("s", it.sayAs)) }
+            sp.edit().putString("sayRules", arr.toString()).apply()
+            Pronounce.set(list)
+        }
+
     var speed: Float
         get() = sp.getFloat("speed", 1f)
         set(v) { sp.edit().putFloat("speed", v.coerceIn(0.5f, 2f)).apply() }

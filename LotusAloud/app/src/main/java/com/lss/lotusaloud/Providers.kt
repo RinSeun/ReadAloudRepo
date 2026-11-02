@@ -58,13 +58,17 @@ object Providers {
 
     private fun elevenModel(quality: String) = if (quality == "fast") "eleven_flash_v2_5" else "eleven_multilingual_v2"
 
-    fun cacheKey(text: String, voiceId: String, cfg: TtsConfig): String = when (of(voiceId)) {
+    fun cacheKey(rawText: String, voiceId: String, cfg: TtsConfig): String = cacheKeySpoken(Pronounce.apply(rawText), voiceId, cfg)
+
+    private fun cacheKeySpoken(text: String, voiceId: String, cfg: TtsConfig): String = when (of(voiceId)) {
         ELEVEN -> "eleven|${elevenModel(cfg.quality)}|$voiceId|$text"
         PHONE -> "phone|$voiceId|$text"
         else -> cfg.fishModel + "|" + SpeechPlayer.buildBody(Moods.tag(text, cfg.mood, cfg.fishModel), voiceId, cfg.quality).toString()
     }
 
-    fun open(ctx: Context, text: String, voiceId: String, cfg: TtsConfig): AudioSource = when (of(voiceId)) {
+    fun open(ctx: Context, rawText: String, voiceId: String, cfg: TtsConfig): AudioSource = openSpoken(ctx, Pronounce.apply(rawText), voiceId, cfg)
+
+    private fun openSpoken(ctx: Context, text: String, voiceId: String, cfg: TtsConfig): AudioSource = when (of(voiceId)) {
         ELEVEN -> openEleven(text, rawId(voiceId), cfg)
         PHONE -> PhoneTts.synthesize(ctx, text, rawId(voiceId))
         else -> openFish(text, voiceId, cfg)

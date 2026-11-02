@@ -251,7 +251,7 @@ class ReadService : Service() {
     private fun startText(raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?, startFraction: Double = 0.0) {
         val prefs = Prefs(this)
         val target = prefs.translateTo
-        val original = TextCleaner.clean(raw)
+        val original = TextCleaner.clean(SmartSkip.apply(raw, prefs))
         val mainIsPhone = Providers.of(prefs.mainVoice) == Providers.PHONE
         if (target.isBlank() && (voiceOverride != null || (!prefs.hasLangVoices && !mainIsPhone))) {
             return startTextNow(original, voiceOverride, record, titleOverride, original, startFraction, voiceOverride)

@@ -5,12 +5,19 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "\u2702 Smart skipping & pronunciation",
+            listOf(
+                "Smart skipping (Settings \u2192 Cleaner reading): skips headers and footers that repeat on every page, page numbers, citations like [12] or (Smith et al., 2020), long links, DOIs and email addresses, and the reference list at the end. Tap it to choose what gets skipped.",
+                "Pronunciation: teach Lotus Aloud how to say names and words it gets wrong (LSS \u2192 L S S, OutBreak \u2192 Out Break). Works with every voice, and Follow along still shows the original word.",
+            ),
+        ),
+        Entry(
             "\uD83D\uDDE3 Better pronunciation in other languages",
             listOf(
                 "Phone voices now switch to the right language by themselves: Korean text is read by your phone's Korean voice, not the English one.",
                 "Pick a voice for each language: hold a language pill (or Settings \u2192 Voice for each language). A native voice sounds far better than an English voice speaking Korean.",
                 "Works without translating too: Lotus Aloud spots the language of what you're reading and uses that language's voice.",
-                "Fixed: short phrases translated oddly (\u201cHello\u201d became the phone-call hello \uC5EC\uBCF4\uC138\uC694 in Korean). Common greetings and thanks are now always right in Korean, Japanese, Chinese, Spanish, French, German, Italian and Portuguese, and other short text is translated as a proper sentence.",
+                "Fixed: short phrases translated oddly (\u201cHello\u201d became the phone-call hello \uC5EC\uBCF4\uC138\uC694 in Korean). Common greetings and thanks are now always right in all 19 translation languages, and other short text is translated as a proper sentence.",
                 "Korean, Japanese and Chinese text is now split into sentences properly, so it starts faster and Follow along highlights the right sentence.",
             ),
         ),

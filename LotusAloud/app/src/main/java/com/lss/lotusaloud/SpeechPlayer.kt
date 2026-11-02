@@ -118,7 +118,10 @@ class SpeechPlayer {
 
     fun init(context: Context) {
         if (cacheDir == null) cacheDir = File(context.cacheDir, "reads").apply { mkdirs() }
-        if (appCtx == null) appCtx = context.applicationContext
+        if (appCtx == null) {
+            appCtx = context.applicationContext
+            Pronounce.load(context)
+        }
     }
 
     private fun setPhase(p: Phase) {
