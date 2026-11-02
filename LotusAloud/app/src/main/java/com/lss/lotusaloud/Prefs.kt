@@ -35,6 +35,20 @@ class Prefs(context: Context) {
             }
         }
 
+    /** Which voice reads each language ("ko" -> voice id). Missing = automatic. */
+    fun langVoice(lang: String): String? = try {
+        JSONObject(sp.getString("langVoices", "{}") ?: "{}").optString(lang, "").ifBlank { null }
+    } catch (e: Exception) { null }
+
+    fun setLangVoice(lang: String, voiceId: String?) {
+        val o = try { JSONObject(sp.getString("langVoices", "{}") ?: "{}") } catch (e: Exception) { JSONObject() }
+        if (voiceId.isNullOrBlank()) o.remove(lang) else o.put(lang, voiceId)
+        sp.edit().putString("langVoices", o.toString()).apply()
+    }
+
+    val hasLangVoices: Boolean
+        get() = try { JSONObject(sp.getString("langVoices", "{}") ?: "{}").length() > 0 } catch (e: Exception) { false }
+
     val recentLangs: List<String>
         get() = (sp.getString("recentLangs", "") ?: "").split(",").filter { it.isNotBlank() }
 

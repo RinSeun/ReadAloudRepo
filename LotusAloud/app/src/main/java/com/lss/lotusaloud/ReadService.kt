@@ -194,7 +194,7 @@ class ReadService : Service() {
                 val orig = ReadSession.original
                 if (orig.isNotBlank() && ReadSession.count > 0) {
                     val frac = ReadSession.index.toDouble() / ReadSession.count
-                    startText(orig, ReadSession.voice, false, ReadSession.originalTitle, frac)
+                    startText(orig, ReadSession.chosenVoice, false, ReadSession.originalTitle, frac)
                 }
             }
             ACTION_NEXT_PART -> nextPart()
@@ -249,23 +249,30 @@ class ReadService : Service() {
     }
 
     private fun startText(raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?, startFraction: Double = 0.0) {
-        val target = Prefs(this).translateTo
+        val prefs = Prefs(this)
+        val target = prefs.translateTo
         val original = TextCleaner.clean(raw)
-        if (target.isBlank()) return startTextNow(original, voiceOverride, record, titleOverride, original, startFraction)
+        val mainIsPhone = Providers.of(prefs.mainVoice) == Providers.PHONE
+        if (target.isBlank() && (voiceOverride != null || (!prefs.hasLangVoices && !mainIsPhone))) {
+            return startTextNow(original, voiceOverride, record, titleOverride, original, startFraction, voiceOverride)
+        }
         player.stop()
-        preparing = "Translating to ${Translate.label(target)}..."
+        preparing = if (target.isBlank()) "Getting ready..." else "Translating to ${Translate.label(target)}..."
         update()
         Thread({
             val result = try {
-                Result.success(Translate.translate(original, target) { msg ->
+                val text = if (target.isBlank()) original else Translate.translate(original, target) { msg ->
                     handler.post { preparing = msg; update() }
-                })
+                }
+                val lang = if (target.isNotBlank()) target else Translate.detect(original)
+                val voice = voiceOverride ?: LangVoices.pick(this, prefs, lang)
+                Result.success(text to voice)
             } catch (e: Exception) {
                 Result.failure(e)
             }
             handler.post {
                 preparing = null
-                result.onSuccess { startTextNow(it, voiceOverride, record, titleOverride, original, startFraction) }
+                result.onSuccess { (text, voice) -> startTextNow(text, voice, record, titleOverride, original, startFraction, voiceOverride) }
                     .onFailure { player.showError((it as? ProviderError)?.message ?: "Couldn't translate that.") }
                 update()
             }
@@ -274,7 +281,7 @@ class ReadService : Service() {
 
     private fun startTextNow(
         raw: String, voiceOverride: String?, record: Boolean, titleOverride: String?,
-        original: String = raw, startFraction: Double = 0.0,
+        original: String = raw, startFraction: Double = 0.0, chosenVoice: String? = voiceOverride,
     ) {
         val prefs = Prefs(this)
         val text = TextCleaner.clean(raw)
@@ -289,6 +296,7 @@ class ReadService : Service() {
         ReadSession.start(title, parts, voice)
         ReadSession.original = original
         ReadSession.originalTitle = titleOverride
+        ReadSession.chosenVoice = chosenVoice
         requestFocus()
         playPart((startFraction * parts.size).toInt().coerceIn(0, parts.size - 1))
     }

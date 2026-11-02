@@ -2,7 +2,7 @@ package com.lss.lotusaloud
 
 object Parts {
     private val LIMITS = intArrayOf(170, 320, 550, 750, 900)
-    private val SENTENCE_END = Regex("(?<=[.!?\\u2026])\\s+")
+    private val SENTENCE_END = Regex("(?<=[.!?\\u2026])\\s+|(?<=[\\u3002\\uFF01\\uFF1F])\\s*")
 
     private fun limit(index: Int) = LIMITS[minOf(index, LIMITS.size - 1)]
 

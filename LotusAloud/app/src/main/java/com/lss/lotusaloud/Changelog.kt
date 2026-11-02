@@ -5,11 +5,21 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "\uD83D\uDDE3 Better pronunciation in other languages",
+            listOf(
+                "Phone voices now switch to the right language by themselves: Korean text is read by your phone's Korean voice, not the English one.",
+                "Pick a voice for each language: hold a language pill (or Settings \u2192 Voice for each language). A native voice sounds far better than an English voice speaking Korean.",
+                "Works without translating too: Lotus Aloud spots the language of what you're reading and uses that language's voice.",
+                "Korean, Japanese and Chinese text is now split into sentences properly, so it starts faster and Follow along highlights the right sentence.",
+            ),
+        ),
+        Entry(
             "\uD83C\uDF0D Switch languages in one tap",
             listOf(
                 "Language pills under the lotus on the Player tab: tap Original, a recent language, or + More.",
                 "Switch while something is playing and it carries on in the new language from about the same spot.",
                 "A fresh look for this What's new screen, with an Updates card to grab the latest version.",
+                "Fixed: the top of the screen could flash black for a moment when tapping the lotus bubble, the Lotus Read tile or \u201cRead audio\u201d.",
                 "Recent reads keep just your last 10, and saved audio never takes more than 40 MB. Settings \u2192 Clear recent reads empties it any time.",
                 "New installs start with your phone's free voice, so friends can try it straight away. Your own voices stay as they are.",
             ),

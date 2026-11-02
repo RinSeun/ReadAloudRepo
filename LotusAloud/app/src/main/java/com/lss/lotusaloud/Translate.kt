@@ -34,6 +34,19 @@ object Translate {
 
     fun label(code: String): String = LANGS.firstOrNull { it.second == code }?.first ?: code
 
+    /** The language the text is in ("ko", "en"...), or "" if unsure. Runs on a background thread. */
+    fun detect(text: String): String {
+        val id = LanguageIdentification.getClient()
+        return try {
+            val code = Tasks.await(id.identifyLanguage(text.take(1500)))
+            if (code == "und") "" else (TranslateLanguage.fromLanguageTag(code) ?: code.substringBefore('-'))
+        } catch (e: Exception) {
+            ""
+        } finally {
+            id.close()
+        }
+    }
+
     fun translate(text: String, target: String, status: (String) -> Unit): String {
         if (target.isBlank()) return text
         val id = LanguageIdentification.getClient()

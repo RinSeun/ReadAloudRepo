@@ -85,6 +85,7 @@ class MainActivity : Activity() {
     private lateinit var heroLogo: android.widget.ImageView
     private lateinit var creditPill: TextView
     private lateinit var langBar: LinearLayout
+    private lateinit var langCaption: TextView
     private var transValue: TextView? = null
     private var creditText = ""
     private var creditColor = 0
@@ -180,6 +181,9 @@ class MainActivity : Activity() {
         val langLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         langLp.topMargin = dp(12)
         playerPage.addView(langScroll, langLp)
+        langCaption = label(playerPage, "", 12f, top = 6)
+        langCaption.gravity = Gravity.CENTER
+        langCaption.setOnClickListener { if (prefs.translateTo.isNotBlank()) pickLangVoice(prefs.translateTo) }
         renderLangBar()
 
         cur = card(playerPage, "Now playing")
@@ -369,6 +373,17 @@ class MainActivity : Activity() {
         val transRow = settingsRow(g, "Translate to", translateText(), valuePink = true)
         transValue = transRow.second
         transRow.first.setOnClickListener { pickTranslate() }
+        divider(g)
+        settingsRow(g, "Voice for each language", "Native voices sound much better").first.setOnClickListener {
+            val langs = Translate.LANGS.filter { it.second.isNotBlank() }
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Voice for each language")
+                .setItems(langs.map { "${it.first} \u00b7 ${langVoiceName(it.second)}" }.toTypedArray()) { _, i ->
+                    pickLangVoice(langs[i].second)
+                }
+                .setNegativeButton("Close", null)
+                .show()
+        }
 
         sectionLabel(settingsPage, "SHORTCUTS")
         g = group(settingsPage)
@@ -1048,12 +1063,47 @@ class MainActivity : Activity() {
         val current = prefs.translateTo
         val shown = (listOf("") + (listOf(current) + prefs.recentLangs).filter { it.isNotBlank() }.distinct().take(3))
         for (code in shown) {
-            langPill(if (code.isBlank()) "Original" else Translate.label(code), code == current) { setTranslate(code) }
+            val pill = langPill(if (code.isBlank()) "Original" else Translate.label(code), code == current) { setTranslate(code) }
+            if (code.isNotBlank()) pill.setOnLongClickListener { pickLangVoice(code); true }
         }
         langPill("+ More", false) { pickTranslate() }
+        if (::langCaption.isInitialized) {
+            langCaption.text = if (current.isBlank()) "Hold a language to choose its voice"
+            else "${Translate.label(current)} is read by ${langVoiceName(current)} \u00b7 tap to change"
+        }
     }
 
-    private fun langPill(text: String, on: Boolean, onClick: () -> Unit) {
+    private fun langVoiceName(lang: String): String {
+        val id = prefs.langVoice(lang)
+        return when {
+            id == null -> if (Providers.of(prefs.mainVoice) == Providers.PHONE) "your phone (automatic)"
+                else (prefs.voices.firstOrNull { it.id == prefs.mainVoice }?.name ?: "your main voice")
+            id.startsWith("phone:@") -> "your phone's ${Translate.label(lang)} voice"
+            else -> prefs.voices.firstOrNull { it.id == id }?.name ?: "your main voice"
+        }
+    }
+
+    /** Pick which voice reads a language: automatic, the phone's voice for it, or one of your voices. */
+    private fun pickLangVoice(lang: String) {
+        val name = Translate.label(lang)
+        val options = mutableListOf<Pair<String, String?>>()
+        options.add("Automatic (your main voice)" to null)
+        options.add("Phone \u00b7 $name (free, made for $name)" to "phone:@$lang")
+        prefs.voices.forEach { v -> options.add("${v.name} \u00b7 ${Providers.label(v.id)}" to v.id) }
+        val current = options.indexOfFirst { it.second == prefs.langVoice(lang) }.coerceAtLeast(0)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Voice for $name")
+            .setSingleChoiceItems(options.map { it.first }.toTypedArray(), current) { d, i ->
+                prefs.setLangVoice(lang, options[i].second)
+                d.dismiss()
+                renderLangBar()
+                toast("$name will be read by ${langVoiceName(lang)}.")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun langPill(text: String, on: Boolean, onClick: () -> Unit): TextView {
         val t = TextView(this)
         t.text = text
         t.textSize = 13f
@@ -1065,6 +1115,7 @@ class MainActivity : Activity() {
         val lp = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
         lp.marginEnd = dp(6)
         langBar.addView(t, lp)
+        return t
     }
 
     private fun setTranslate(code: String) {

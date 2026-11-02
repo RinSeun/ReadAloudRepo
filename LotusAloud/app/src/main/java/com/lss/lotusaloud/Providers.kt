@@ -39,7 +39,7 @@ object Providers {
 
     fun rawId(voiceId: String): String = voiceId.substringAfter(':', voiceId).let { if (of(voiceId) == FISH) voiceId else it }
 
-    fun label(voiceId: String): String = when (of(voiceId)) {
+    fun label(voiceId: String): String = if (voiceId.startsWith("phone:@")) "Phone \u00b7 ${java.util.Locale(voiceId.removePrefix("phone:@")).displayLanguage}" else when (of(voiceId)) {
         ELEVEN -> "ElevenLabs"
         PHONE -> "Phone"
         else -> "Fish"
@@ -248,9 +248,33 @@ object PhoneTts {
             }
     }
 
+    /** Best installed phone voice for a language, e.g. "ko". Null if the phone has none. */
+    fun voiceFor(ctx: Context, lang: String): android.speech.tts.Voice? {
+        val e = engine(ctx)
+        return (e.voices ?: emptySet())
+            .filter { it.locale.language == java.util.Locale(lang).language && !it.features.contains("notInstalled") }
+            .sortedWith(compareBy({ it.isNetworkConnectionRequired }, { -it.quality }))
+            .firstOrNull()
+    }
+
+    /** The language a phone voice speaks ("" = the phone's default voice). */
+    fun languageOf(ctx: Context, voiceName: String): String {
+        val e = engine(ctx)
+        val v = if (voiceName.isBlank()) e.defaultVoice else e.voices?.firstOrNull { it.name == voiceName }
+        return v?.locale?.language ?: java.util.Locale.getDefault().language
+    }
+
     fun synthesize(ctx: Context, text: String, voiceName: String): AudioSource = synchronized(useLock) {
         val e = engine(ctx)
-        if (voiceName.isNotBlank()) {
+        if (voiceName.startsWith("@")) {
+            val lang = voiceName.removePrefix("@")
+            val v = voiceFor(ctx, lang)
+                ?: throw ProviderError(
+                    "Your phone doesn't have a ${java.util.Locale(lang).displayLanguage} voice yet. " +
+                        "Settings \u2192 General management \u2192 Text-to-speech \u2192 \u2699 \u2192 Install voice data."
+                )
+            e.voice = v
+        } else if (voiceName.isNotBlank()) {
             e.voices?.firstOrNull { it.name == voiceName }?.let { e.voice = it }
         } else {
             e.defaultVoice?.let { e.voice = it }

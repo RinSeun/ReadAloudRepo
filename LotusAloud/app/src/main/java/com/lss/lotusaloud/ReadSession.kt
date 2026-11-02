@@ -7,6 +7,7 @@ object ReadSession {
     @Volatile var voice: String = ""
     @Volatile var original: String = ""
     @Volatile var originalTitle: String? = null
+    @Volatile var chosenVoice: String? = null
 
     @Volatile var pendingFraction: Double? = null
 
