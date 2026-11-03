@@ -58,9 +58,6 @@ class Prefs(context: Context) {
     var pureBlack: Boolean
         get() = sp.getBoolean("pureBlack", false)
         set(v) { sp.edit().putBoolean("pureBlack", v).apply() }
-    var autoSave: Boolean
-        get() = sp.getBoolean("autoSave", true)
-        set(v) { sp.edit().putBoolean("autoSave", v).apply() }
 
     var smartSkip: Boolean
         get() = sp.getBoolean("smartSkip", true)

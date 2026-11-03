@@ -42,6 +42,15 @@ data class SavedRead(
     }
 }
 
+/** Who reads what in a multi-voice book. Keys are character names; "" is the narrator, "?" is lines nobody was found for. */
+class CastSetup(
+    var on: Boolean,
+    var narrator: String,
+    val voices: MutableMap<String, String>,
+    val renames: MutableMap<String, String>,
+    var characters: Int,
+)
+
 object Saved {
     const val MAX = 40
     const val LONG_TEXT = 2500
@@ -51,6 +60,30 @@ object Saved {
     private fun dir(ctx: Context) = File(ctx.filesDir, "saved").apply { mkdirs() }
     private fun index(ctx: Context) = File(dir(ctx), "index.json")
     private fun textFile(ctx: Context, id: String) = File(dir(ctx), "$id.txt")
+    private fun castFile(ctx: Context, id: String) = File(dir(ctx), "$id.cast.json")
+
+    /** The multi-voice setup for a saved read, or null if it was never scanned. */
+    fun cast(ctx: Context, id: String): CastSetup? = try {
+        val f = castFile(ctx, id)
+        if (!f.exists()) null else {
+            val o = JSONObject(f.readText())
+            fun map(key: String): MutableMap<String, String> {
+                val m = LinkedHashMap<String, String>()
+                val j = o.optJSONObject(key) ?: return m
+                j.keys().forEach { k -> m[k] = j.optString(k) }
+                return m
+            }
+            CastSetup(o.optBoolean("on", true), o.optString("narrator"), map("voices"), map("renames"), o.optInt("characters"))
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    fun saveCast(ctx: Context, id: String, c: CastSetup) {
+        val o = JSONObject().put("on", c.on).put("narrator", c.narrator).put("characters", c.characters)
+            .put("voices", JSONObject(c.voices as Map<*, *>)).put("renames", JSONObject(c.renames as Map<*, *>))
+        castFile(ctx, id).writeText(o.toString())
+    }
 
     fun list(ctx: Context): List<SavedRead> = synchronized(lock) {
         try {
@@ -78,6 +111,12 @@ object Saved {
         null
     }
 
+    /** The saved read with exactly this text, if you've already added it (so it can carry on from your spot). */
+    fun find(ctx: Context, text: String): SavedRead? {
+        val id = hash(text.take(MAX_TEXT_CHARS))
+        return list(ctx).firstOrNull { it.id == id }
+    }
+
     /** Adds a read, or returns the one already saved with the same text (so it can carry on where it stopped). */
     fun add(ctx: Context, title: String, text: String, kind: String): SavedRead = synchronized(lock) {
         val body = text.take(MAX_TEXT_CHARS)
@@ -86,13 +125,14 @@ object Saved {
         val items = list(ctx).toMutableList()
         val existing = items.firstOrNull { it.id == id }
         val item = existing?.copy(opened = now)
-            ?: SavedRead(id, title.ifBlank { "Untitled" }.take(120), kind, body.length, 0.0, false, "", "", now, now)
+            ?: SavedRead(id, title.replace('_', ' ').trim().ifBlank { "Untitled" }.take(120), kind, body.length, 0.0, false, "", "", now, now)
         if (existing == null) textFile(ctx, id).writeText(body)
         items.removeAll { it.id == id }
         items.add(0, item)
         while (items.size > MAX) {
             val old = items.removeAt(items.size - 1)
             textFile(ctx, old.id).delete()
+            castFile(ctx, old.id).delete()
         }
         save(ctx, items)
         item
@@ -105,6 +145,7 @@ object Saved {
     }
 
     fun remove(ctx: Context, id: String) = synchronized(lock) {
+        castFile(ctx, id).delete()
         textFile(ctx, id).delete()
         save(ctx, list(ctx).filterNot { it.id == id })
     }

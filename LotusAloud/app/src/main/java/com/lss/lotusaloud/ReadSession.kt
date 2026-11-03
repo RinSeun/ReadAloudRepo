@@ -14,6 +14,12 @@ object ReadSession {
     /** The Saved Read being played (its spot is remembered), or null. */
     @Volatile var savedId: String? = null
 
+    /** Multi-voice: the voice for each part, and what goes between parts in Follow along. Null for a normal read. */
+    @Volatile var partVoices: List<String>? = null
+    @Volatile var partSeps: List<String>? = null
+
+    fun voiceFor(i: Int) = partVoices?.getOrNull(i) ?: voice
+
     @Volatile var version: Int = 0
 
     val count get() = parts.size
@@ -26,6 +32,8 @@ object ReadSession {
         voice = newVoice
         index = 0
         pendingFraction = null
+        partVoices = null
+        partSeps = null
         version++
     }
 }

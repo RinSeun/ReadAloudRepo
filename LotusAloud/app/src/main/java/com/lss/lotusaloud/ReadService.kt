@@ -41,6 +41,7 @@ class ReadService : Service() {
         const val ACTION_READ_SAVED = "com.lss.lotusaloud.READ_SAVED"
         const val EXTRA_ID = "id"
         const val EXTRA_FROM_START = "fromStart"
+        const val EXTRA_SAVE = "save"
         const val EXTRA_PART = "part"
         const val EXTRA_FRACTION = "fraction"
         const val EXTRA_PATHS = "paths"
@@ -63,9 +64,11 @@ class ReadService : Service() {
             ctx.startForegroundService(Intent(ctx, ReadService::class.java).setAction(ACTION_RETRANSLATE))
         }
 
-        fun readDocument(ctx: Context, path: String, mime: String?, name: String?) {
+        /** save = true adds it to Saved Reads (the "Add a document" and "Read a document" buttons). */
+        fun readDocument(ctx: Context, path: String, mime: String?, name: String?, save: Boolean = false) {
             val i = Intent(ctx, ReadService::class.java).setAction(ACTION_READ_DOC)
                 .putExtra(EXTRA_PATHS, arrayOf(path)).putExtra(EXTRA_MIME, mime).putExtra(EXTRA_NAME, name)
+                .putExtra(EXTRA_SAVE, save)
             ctx.startForegroundService(i)
         }
 
@@ -182,6 +185,7 @@ class ReadService : Service() {
                 val path = intent.getStringArrayExtra(EXTRA_PATHS)?.firstOrNull()
                 val mime = intent.getStringExtra(EXTRA_MIME)
                 val name = intent.getStringExtra(EXTRA_NAME)
+                val save = intent.getBooleanExtra(EXTRA_SAVE, false)
                 if (path != null) {
                     player.stop()
                     preparing = "Opening ${name ?: "your document"}..."
@@ -198,7 +202,7 @@ class ReadService : Service() {
                         handler.post {
                             preparing = null
                             result.onSuccess { doc ->
-                                val saved = if (Prefs(this).autoSave) Saved.add(this, doc.title, doc.text, doc.kind) else null
+                                val saved = if (save) Saved.add(this, doc.title, doc.text, doc.kind) else Saved.find(this, doc.text)
                                 val from = saved?.resumeFrom ?: 0.0
                                 if (from > 0.0) Toast.makeText(this, "Continuing from ${saved?.percent}%", Toast.LENGTH_SHORT).show()
                                 startText(doc.text, null, true, doc.title, from, saved?.id)
@@ -231,7 +235,9 @@ class ReadService : Service() {
                     } else {
                         val from = if (intent.getBooleanExtra(EXTRA_FROM_START, false)) 0.0 else item.resumeFrom
                         Saved.update(this, id) { it.copy(opened = System.currentTimeMillis(), done = if (from == 0.0) false else it.done) }
-                        startText(text, voice, false, item.title, from, id)
+                        val cast = Saved.cast(this, id)
+                        if (cast != null && cast.on && prefs.translateTo.isBlank()) startCast(text, item.title, id, cast, from)
+                        else startText(text, voice, false, item.title, from, id)
                     }
                 }
             }
@@ -273,12 +279,11 @@ class ReadService : Service() {
             player.stop()
             preparing = "Getting the article..."
             Thread({
-                val result = try { Result.success(Article.fetch(link)) } catch (e: Exception) { Result.failure(e) }
+                val result = try { Result.success(Article.fetch(this, link)) } catch (e: Exception) { Result.failure(e) }
                 handler.post {
                     preparing = null
                     result.onSuccess { art ->
-                        val saved = if (record && Prefs(this).autoSave) Saved.add(this, art.title, art.text, SavedRead.KIND_WEB) else null
-                        startText(art.text, voiceOverride, record, art.title, saved?.resumeFrom ?: 0.0, saved?.id)
+                        startText(art.text, voiceOverride, record, art.title)
                     }
                         .onFailure { player.showError(it.message ?: "Couldn't read that link.") }
                     update()
@@ -286,10 +291,7 @@ class ReadService : Service() {
             }, "lotus-article").start()
             return
         }
-        val saved = if (record && raw.length >= Saved.LONG_TEXT && Prefs(this).autoSave) {
-            Saved.add(this, Saved.titleFor(raw), raw, SavedRead.KIND_TEXT)
-        } else null
-        startText(raw, voiceOverride, record, null, saved?.resumeFrom ?: 0.0, saved?.id)
+        startText(raw, voiceOverride, record, null)
     }
 
     private fun startText(
@@ -359,6 +361,64 @@ class ReadService : Service() {
         if (rest in 0.03..0.97) ReadSession.pendingFraction = rest
     }
 
+    /** Multi-voice: the narrator and each character read their own lines. */
+    private fun startCast(raw: String, bookTitle: String, id: String, setup: CastSetup, from: Double) {
+        val prefs = Prefs(this)
+        player.stop()
+        preparing = "Getting the voices ready..."
+        update()
+        Thread({
+            val result = runCatching {
+                val text = TextCleaner.clean(SmartSkip.apply(raw, prefs))
+                val scan = Cast.scan(text, setup.renames)
+                val have = prefs.voices.map { it.id }.toSet()
+                val narrator = setup.narrator.takeIf { it in have } ?: prefs.mainVoice
+                val parts = ArrayList<String>()
+                val voices = ArrayList<String>()
+                val seps = ArrayList<String>()
+                for (seg in scan.segments) {
+                    val v = if (seg.speaker == Cast.NARRATOR) narrator else setup.voices[seg.speaker]?.takeIf { it in have } ?: narrator
+                    val pieces = if (seg.text.length > 420) Parts.split(seg.text) else listOf(seg.text)
+                    pieces.forEachIndexed { k, p ->
+                        val sep = if (k == 0) seg.sep else " "
+                        if (voices.isNotEmpty() && voices.last() == v && parts.last().length + p.length < 420) {
+                            parts[parts.size - 1] = parts.last() + (if (sep.isEmpty()) " " else sep) + p
+                        } else {
+                            parts.add(p)
+                            voices.add(v)
+                            seps.add(if (parts.size == 1) "" else sep.ifEmpty { " " })
+                        }
+                    }
+                }
+                Triple(Triple(parts, voices, seps), narrator, text)
+            }
+            handler.post {
+                preparing = null
+                result.onSuccess { (lists, narrator, text) ->
+                    val (parts, voices, seps) = lists
+                    if (parts.isEmpty()) {
+                        player.showError("There's no text to read.")
+                    } else {
+                        title = bookTitle.replace(Regex("\\s+"), " ").take(80)
+                        ReadSession.start(title, parts, narrator)
+                        ReadSession.partVoices = voices
+                        ReadSession.partSeps = seps
+                        ReadSession.original = text
+                        ReadSession.originalTitle = bookTitle
+                        ReadSession.chosenVoice = null
+                        ReadSession.savedId = id
+                        lastSpotPhase = null
+                        requestFocus()
+                        val pos = from.coerceIn(0.0, 1.0) * parts.size
+                        val first = pos.toInt().coerceIn(0, parts.size - 1)
+                        playPart(first)
+                    }
+                }.onFailure { player.showError("Couldn't get the voices ready.") }
+                update()
+            }
+        }, "lotus-cast").start()
+    }
+
     private fun playPart(i: Int) {
         val parts = ReadSession.parts
         if (i !in parts.indices) return
@@ -368,10 +428,10 @@ class ReadService : Service() {
         lastDuration = -1.0
         player.setSpeed(prefs.speed)
         val cfg = TtsConfig.from(prefs)
-        val voice = ReadSession.voice
-
-        val ahead = (i + 1..i + 3).mapNotNull { parts.getOrNull(it) }
-        player.speak(parts[i], voice, cfg, quickStart = i == 0) { ahead.forEach { player.prefetch(it, voice, cfg) } }
+        val voice = ReadSession.voiceFor(i)
+        val reach = if (ReadSession.partVoices != null) 5 else 3
+        val ahead = (i + 1..i + reach).mapNotNull { n -> parts.getOrNull(n)?.let { it to ReadSession.voiceFor(n) } }
+        player.speak(parts[i], voice, cfg, quickStart = i == 0) { ahead.forEach { (t, v) -> player.prefetch(t, v, cfg) } }
         handler.removeCallbacks(tick)
         handler.post(tick)
     }

@@ -42,6 +42,9 @@ class MainActivity : Activity() {
     companion object {
         const val EXTRA_ASK_SCREENSHOTS = "askScreenshots"
         private var reopenTab: Int? = null
+        private var reopenMore = false
+        /** Listen, Library and Settings. Voices (page 2) opens from Settings. */
+        private val TAB_PAGES = listOf(0, 1, 3)
         private const val SCREENSHOT_PERMISSION_REQUEST = 7
     }
 
@@ -62,9 +65,11 @@ class MainActivity : Activity() {
     private lateinit var apiKeyEdit: EditText
     private lateinit var elevenKeyEdit: EditText
     private lateinit var historyBox: LinearLayout
+    private lateinit var nowCard: LinearLayout
     private lateinit var savedBox: LinearLayout
     private var savedStamp = -1L
     private var currentTab = 0
+    private var wasBlack = false
     private lateinit var bubbleSwitch: android.widget.Switch
     private lateinit var shotsSwitch: android.widget.Switch
     private lateinit var summaryText: TextView
@@ -107,6 +112,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
         Look.load(prefs)
+        wasBlack = prefs.pureBlack
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Look.bg))
         window.navigationBarColor = Look.bar
 
@@ -194,54 +200,62 @@ class MainActivity : Activity() {
         langCaption.setOnClickListener { if (prefs.translateTo.isNotBlank()) pickLangVoice(prefs.translateTo) }
         renderLangBar()
 
-        cur = card(playerPage, "Now playing")
+        nowCard = card(playerPage, "Now playing")
+        cur = nowCard
         statusText = label(cur, "Idle", 15f)
-        val controls = row(cur)
+        val controls = row(cur, 10)
         button(controls, "\u221210s", 1f) { player.skip(-10.0) }
-        pauseBtn = button(controls, "Pause", 1f) { player.togglePause() }
+        pauseBtn = button(controls, "Pause", 1.4f, primary = true) { player.togglePause() }
         button(controls, "+10s", 1f) { player.skip(10.0) }
-        stopBtn = button(controls, "Stop", 1f) { player.stop() }
-        val followRow = row(cur)
+        val followRow = row(cur, 2)
         button(followRow, "Follow along", 1f) { startActivity(Intent(this, ReaderActivity::class.java)) }
+        stopBtn = button(followRow, "Stop", 1f) { player.stop() }
         if (Edition.PLAY) button(followRow, "Report") { Report.show(this) }
 
-        cur = card(playerPage, "Read text")
-        val paste = edit(cur, "Paste or type text here")
+        cur = card(playerPage, "Read something")
+        val paste = edit(cur, "Paste text or a webpage link")
         paste.setSingleLine(false)
         paste.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         paste.minLines = 3
         paste.gravity = Gravity.TOP or Gravity.START
-        button(row(cur), "Read this", 1f, primary = true) {
-            if (requireKey()) ReadService.read(this, paste.text.toString())
+        val readBtn = button(row(cur, 8), "Read", 1f, primary = true) {
+            if (paste.text.isBlank()) toast("Paste or type something first.")
+            else if (requireKey()) ReadService.read(this, paste.text.toString())
         }
-        button(row(cur), "Read a screenshot or photo", 1f) { pickImage() }
-        button(row(cur), "Read a document (PDF, Word, EPUB)", 1f) { pickDocument() }
-        label(
-            cur,
-            "Paste a webpage link to hear the article. Or take a screenshot \u2192 Share \u2192 Lotus Aloud.",
-            13f,
-        )
+        readBtn.textSize = 16f
+        readBtn.minHeight = dp(52)
+        val pickRow = row(cur, 2)
+        button(pickRow, "Document", 1f) { pickDocument() }
+        button(pickRow, "Photo", 1f) { pickImage() }
+        label(cur, "Documents are kept in your Library so you can carry on later.", 12f, top = 6)
 
-        cur = card(playerPage, "Recent reads")
-        label(cur, "Tap Play to hear one again. Replays are instant and free.", 13f)
-        historyBox = LinearLayout(this)
-        historyBox.orientation = LinearLayout.VERTICAL
-        cur.addView(historyBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        renderHistory()
-
-        bigTitle(savedPage, "Saved Reads")
+        bigTitle(savedPage, "Library")
         label(
             savedPage,
-            "Documents, books, articles and long reads are kept here, and Lotus Aloud remembers where you stopped. " +
-                "Only the text is kept on your phone, not the audio.",
+            "Your documents and books, and where you stopped. Only the text is kept on your phone, never the audio.",
             13f, top = 2,
         ).setPadding(dp(10), 0, dp(10), 0)
-        button(row(savedPage, 12), "Add a document (PDF, Word, EPUB)", 1f, primary = true) { pickDocument() }
+        val addDocBtn = button(row(savedPage, 12), "Add a document", 1f, primary = true) { pickDocument() }
+        addDocBtn.textSize = 16f
+        addDocBtn.minHeight = dp(52)
+        label(savedPage, "PDF, Word or EPUB", 12f, top = 2).gravity = Gravity.CENTER
         savedBox = LinearLayout(this)
         savedBox.orientation = LinearLayout.VERTICAL
         savedPage.addView(savedBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         renderSaved()
 
+        sectionLabel(savedPage, "RECENT READS")
+        cur = group(savedPage)
+        cur.setPadding(dp(14), dp(10), dp(10), dp(12))
+        label(cur, "Your last 10 reads. Replays are instant and free.", 12f)
+        historyBox = LinearLayout(this)
+        historyBox.orientation = LinearLayout.VERTICAL
+        cur.addView(historyBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        renderHistory()
+
+        val back = label(voicesPage, "\u2039  Settings", 15f, bold = true, color = Look.soft, top = 18)
+        back.setPadding(dp(4), dp(6), dp(4), dp(6))
+        back.setOnClickListener { selectTab(3) }
         bigTitle(voicesPage, "Voices")
         sectionLabel(voicesPage, "MAIN VOICE")
         mainVoiceBox = LinearLayout(this)
@@ -304,7 +318,7 @@ class MainActivity : Activity() {
         bigTitle(settingsPage, "Settings")
         summaryText = buildSummaryCard(settingsPage)
 
-        sectionLabel(settingsPage, "READING")
+        sectionLabel(settingsPage, "BASICS")
         var g = group(settingsPage)
 
         val speedBox = LinearLayout(this)
@@ -351,7 +365,30 @@ class MainActivity : Activity() {
             tv.layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
         }
         divider(g)
+        val transRow = settingsRow(g, "Language", translateText(), valuePink = true)
+        transValue = transRow.second
+        transRow.first.setOnClickListener { pickTranslate() }
+        divider(g)
+        val themeRow = settingsRow(g, "Theme", Look.THEMES[Look.index].name, valuePink = true)
+        themeRow.first.setOnClickListener { pickTheme() }
 
+        val moreHolder = group(settingsPage)
+        (moreHolder.layoutParams as LinearLayout.LayoutParams).topMargin = dp(14)
+        val moreRow = settingsRow(moreHolder, "More settings", "Quality, moods, skipping, shortcuts and more")
+        val moreBox = LinearLayout(this)
+        moreBox.orientation = LinearLayout.VERTICAL
+        moreBox.visibility = if (reopenMore) View.VISIBLE else View.GONE
+        settingsPage.addView(moreBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        moreRow.first.setOnClickListener {
+            val open = moreBox.visibility != View.VISIBLE
+            moreBox.visibility = if (open) View.VISIBLE else View.GONE
+            moreRow.second.text = if (open) "Tap to hide" else "Quality, moods, skipping, shortcuts and more"
+        }
+        if (reopenMore) moreRow.second.text = "Tap to hide"
+        reopenMore = false
+
+        sectionLabel(moreBox, "READING")
+        g = group(moreBox)
         val qBox = LinearLayout(this)
         qBox.orientation = LinearLayout.VERTICAL
         qBox.setPadding(dp(20), dp(14), dp(20), dp(16))
@@ -391,10 +428,6 @@ class MainActivity : Activity() {
         val moodRow = settingsRow(g, "Mood", Moods.label(prefs.mood) + " \u00b7 Fish voices", valuePink = true)
         moodRow.first.setOnClickListener { pickMood(moodRow.second) }
         divider(g)
-        val transRow = settingsRow(g, "Translate to", translateText(), valuePink = true)
-        transValue = transRow.second
-        transRow.first.setOnClickListener { pickTranslate() }
-        divider(g)
         settingsRow(g, "Voice for each language", "Native voices sound much better").first.setOnClickListener {
             val langs = Translate.LANGS.filter { it.second.isNotBlank() }
             android.app.AlertDialog.Builder(this)
@@ -406,11 +439,8 @@ class MainActivity : Activity() {
                 .show()
         }
 
-        sectionLabel(settingsPage, "LOOK")
-        g = group(settingsPage)
-        val themeRow = settingsRow(g, "Theme", Look.THEMES[Look.index].name, valuePink = true)
-        themeRow.first.setOnClickListener { pickTheme() }
-        divider(g)
+        sectionLabel(moreBox, "LOOK")
+        g = group(moreBox)
         val blackRow = settingsRow(g, "Pure black background", "Deeper blacks, easier on OLED screens", chevron = false)
         val blackSwitch = switchOn(blackRow.first) { on ->
             if (on != prefs.pureBlack) { prefs.pureBlack = on; applyTheme() }
@@ -419,14 +449,9 @@ class MainActivity : Activity() {
         blackSwitch.isChecked = prefs.pureBlack
         settingSwitch = false
 
-        sectionLabel(settingsPage, "SAVED READS")
-        g = group(settingsPage)
-        val autoRow = settingsRow(g, "Save long reads automatically", "Documents, books, articles and long text", chevron = false)
-        val autoSwitch = switchOn(autoRow.first) { on -> prefs.autoSave = on }
-        settingSwitch = true
-        autoSwitch.isChecked = prefs.autoSave
-        settingSwitch = false
-        divider(g)
+        sectionLabel(moreBox, "STORAGE")
+        g = group(moreBox)
+        val storageGroup = g
         val clearSavedRow = settingsRow(g, "Clear Saved Reads", savedReadsText())
         clearSavedRow.first.setOnClickListener {
             android.app.AlertDialog.Builder(this)
@@ -444,8 +469,8 @@ class MainActivity : Activity() {
                 .show()
         }
 
-        sectionLabel(settingsPage, "CLEANER READING")
-        g = group(settingsPage)
+        sectionLabel(moreBox, "CLEANER READING")
+        g = group(moreBox)
         val skipRow = settingsRow(g, "Smart skipping", skipText(), chevron = false)
         val skipSwitch = switchOn(skipRow.first) { on -> prefs.smartSkip = on; skipRow.second.text = skipText() }
         settingSwitch = true
@@ -456,8 +481,8 @@ class MainActivity : Activity() {
         val sayRow = settingsRow(g, "Pronunciation", sayText())
         sayRow.first.setOnClickListener { showSayRules(sayRow.second) }
 
-        sectionLabel(settingsPage, "SHORTCUTS")
-        g = group(settingsPage)
+        sectionLabel(moreBox, "SHORTCUTS")
+        g = group(moreBox)
         val bubbleRow = settingsRow(g, "Lotus bubble", "Tap it to read copied text", chevron = false)
         bubbleSwitch = switchOn(bubbleRow.first) { on -> if (on != (prefs.bubbleOn && BubbleService.canShow(this))) toggleBubble() }
         divider(g)
@@ -483,8 +508,8 @@ class MainActivity : Activity() {
         }
         divider(g)
         settingsRow(g, "What's new", null).first.setOnClickListener { showWhatsNew() }
-        divider(g)
-        val clearRow = settingsRow(g, "Clear recent reads", savedText())
+        divider(storageGroup)
+        val clearRow = settingsRow(storageGroup, "Clear recent reads", savedText())
         clearRow.first.setOnClickListener {
             android.app.AlertDialog.Builder(this)
                 .setTitle("Clear recent reads?")
@@ -518,6 +543,15 @@ class MainActivity : Activity() {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        when (currentTab) {
+            2 -> selectTab(3)
+            0 -> super.onBackPressed()
+            else -> selectTab(0)
         }
     }
 
@@ -800,7 +834,7 @@ class MainActivity : Activity() {
             if (path == null) toast("Couldn't open that file.")
             else {
                 toast("Opening ${name ?: "your document"}...")
-                ReadService.readDocument(this, path, contentResolver.getType(uri), name)
+                ReadService.readDocument(this, path, contentResolver.getType(uri), name, save = true)
             }
             return
         }
@@ -903,30 +937,47 @@ class MainActivity : Activity() {
     /** The Saved Reads shelf. Only redraws when something changed. */
     private fun renderSaved() {
         if (!::savedBox.isInitialized) return
-        val stamp = Saved.stamp(this) + (ReadSession.savedId?.hashCode() ?: 0)
+        val live = livePercent()
+        val phase = if (ReadSession.savedId != null) player.snapshot().phase.ordinal else -1
+        val stamp = Saved.stamp(this) * 7 + (ReadSession.savedId?.hashCode() ?: 0) * 31 + phase * 1000 + live
         if (stamp == savedStamp) return
         savedStamp = stamp
         val items = Saved.list(this)
         savedBox.removeAllViews()
         if (items.isEmpty()) {
-            val empty = label(savedBox, "Nothing saved yet.\nOpen a PDF, Word file or EPUB book, share a webpage, or paste a long text, and it shows up here.", 14f, top = 30)
+            val empty = label(savedBox, "Nothing here yet.\nTap Add a document above, or Document on the Listen tab.", 14f, top = 30)
             empty.gravity = Gravity.CENTER
             return
         }
         val playing = ReadSession.savedId
         sectionLabel(savedBox, if (items.size == 1) "1 SAVED READ" else "${items.size} SAVED READS")
-        for (item in items) savedCard(item, item.id == playing)
+        for (item in items) savedCard(item, item.id == playing, if (item.id == playing && live >= 0) live else item.percent)
     }
 
-    private fun savedCard(item: SavedRead, playing: Boolean) {
+    /** How far into the saved read that's playing right now, or -1. */
+    private fun livePercent(): Int {
+        if (ReadSession.savedId == null || ReadSession.count == 0) return -1
+        val s = player.snapshot()
+        if (s.phase != Phase.PLAYING && s.phase != Phase.PAUSED && s.phase != Phase.LOADING) return -1
+        val inPart = if (!s.streaming && s.duration > 0) (s.current / s.duration).coerceIn(0.0, 1.0) else 0.0
+        return (((ReadSession.index + inPart) / ReadSession.count) * 100).toInt().coerceIn(0, 99)
+    }
+
+    private fun niceTitle(t: String) = t.replace('_', ' ').replace(Regex("\\s+"), " ").trim()
+
+    private fun savedCard(item: SavedRead, playing: Boolean, percent: Int) {
         val c = LinearLayout(this)
-        c.orientation = LinearLayout.HORIZONTAL
-        c.gravity = Gravity.CENTER_VERTICAL
+        c.orientation = LinearLayout.VERTICAL
         c.background = rounded(cardColor, 18, if (playing) Look.accentA(150) else null)
-        c.setPadding(dp(14), dp(12), dp(10), dp(12))
+        c.setPadding(dp(14), dp(14), dp(14), dp(12))
         val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
-        lp.bottomMargin = dp(10)
+        lp.bottomMargin = dp(12)
         savedBox.addView(c, lp)
+
+        val top = LinearLayout(this)
+        top.orientation = LinearLayout.HORIZONTAL
+        top.gravity = Gravity.CENTER_VERTICAL
+        c.addView(top, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val icon = TextView(this)
         icon.text = item.badge
@@ -936,13 +987,13 @@ class MainActivity : Activity() {
         icon.setTextColor(Look.soft)
         icon.gravity = Gravity.CENTER
         icon.background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(Look.deep3) }
-        c.addView(icon, LinearLayout.LayoutParams(dp(52), dp(52)))
+        top.addView(icon, LinearLayout.LayoutParams(dp(52), dp(52)))
 
         val mid = LinearLayout(this)
         mid.orientation = LinearLayout.VERTICAL
-        mid.setPadding(dp(12), 0, dp(8), 0)
-        c.addView(mid, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        val title = label(mid, item.title, 15f, bold = true)
+        mid.setPadding(dp(12), 0, 0, 0)
+        top.addView(mid, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        val title = label(mid, niceTitle(item.title), 15f, bold = true)
         title.maxLines = 2
         title.ellipsize = android.text.TextUtils.TruncateAt.END
         val kind = when (item.kind) {
@@ -954,46 +1005,75 @@ class MainActivity : Activity() {
         }
         val mins = (item.chars / 900).coerceAtLeast(1)
         val length = if (mins >= 60) "${mins / 60} h ${mins % 60} min" else "$mins min"
-        val ago = DateUtils.getRelativeTimeSpanString(item.opened, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)
-        val state = when {
-            playing -> "Playing \u00b7 ${item.percent}%"
-            item.done -> "Finished"
-            item.percent > 0 -> "${item.percent}% read"
-            else -> "Not started"
-        }
+        val now = System.currentTimeMillis()
+        val ago = if (now - item.opened < 60_000) "just now"
+        else DateUtils.getRelativeTimeSpanString(item.opened, now, DateUtils.MINUTE_IN_MILLIS).toString()
         label(mid, "$kind \u00b7 about $length \u00b7 $ago", 12f, top = 2)
 
+        val phase = player.snapshot().phase
+        val active = playing && (phase == Phase.PLAYING || phase == Phase.PAUSED || phase == Phase.LOADING)
+        val pct = if (item.done && !active) 100 else percent.coerceIn(0, 100)
         val track = LinearLayout(this)
         track.orientation = LinearLayout.HORIZONTAL
         track.background = rounded(Look.raise, 99)
         val tlp = LinearLayout.LayoutParams(MATCH_PARENT, dp(5))
-        tlp.topMargin = dp(8)
-        mid.addView(track, tlp)
-        val pct = item.percent.coerceIn(0, 100)
+        tlp.topMargin = dp(12)
+        c.addView(track, tlp)
         if (pct > 0) {
             val fill = View(this)
-            fill.background = rounded(if (item.done) Color.parseColor("#2EA043") else accent, 99)
+            fill.background = rounded(if (pct == 100) Color.parseColor("#2EA043") else accent, 99)
             track.addView(fill, LinearLayout.LayoutParams(0, MATCH_PARENT, pct.toFloat()))
         }
         if (pct < 100) track.addView(View(this), LinearLayout.LayoutParams(0, MATCH_PARENT, (100 - pct).toFloat()))
-        label(mid, state, 12f, color = if (playing) Look.soft else null, top = 4)
+        val state = when {
+            active && phase == Phase.LOADING -> "Getting ready \u00b7 $pct%"
+            active && phase == Phase.PAUSED -> "Paused \u00b7 $pct%"
+            active -> "Playing \u00b7 $pct%"
+            item.done -> "Finished"
+            pct > 0 -> "$pct% read"
+            else -> "Not started"
+        }
+        label(c, state, 12f, color = if (active) Look.soft else null, top = 6)
 
-        playCircle(c, 46, true) {
-            if (playing && (player.snapshot().phase == Phase.PLAYING || player.snapshot().phase == Phase.PAUSED)) {
+        val buttons = row(c, 8)
+        val playText = when {
+            active && phase != Phase.PAUSED -> "Pause"
+            active -> "Resume"
+            item.resumeFrom > 0.0 -> "Continue"
+            else -> "Play"
+        }
+        button(buttons, playText, 1.2f, primary = true) {
+            if (active) {
                 player.togglePause()
             } else {
                 ReadService.readSaved(this, item.id)
                 if (item.resumeFrom > 0.0) toast("Continuing from ${item.percent}%")
             }
+            savedStamp = -1L
         }
-        c.setOnClickListener { savedOptions(item) }
+        button(buttons, "Restart", 1f) {
+            ReadService.readSaved(this, item.id, fromStart = true)
+            savedStamp = -1L
+        }
+        val cast = Saved.cast(this, item.id)
+        val castText = if (cast != null && cast.on && cast.characters > 0) "Voices \u00b7 ${cast.characters}" else "Voices"
+        val castBtn = button(buttons, castText, 1.1f) {
+            CastScreen(this, item) { savedStamp = -1L; renderSaved() }.show()
+        }
+        if (cast != null && cast.on) castBtn.setTextColor(Look.soft)
+        button(buttons, "More", 0.9f) { savedOptions(item) }
+        for (n in 0 until buttons.childCount) {
+            (buttons.getChildAt(n) as? Button)?.apply {
+                setPadding(dp(4), 0, dp(4), 0)
+                textSize = 13.5f
+                maxLines = 1
+            }
+        }
         c.setOnLongClickListener { savedOptions(item); true }
     }
 
     private fun savedOptions(item: SavedRead) {
         val actions = mutableListOf<Pair<String, () -> Unit>>()
-        if (item.resumeFrom > 0.0) actions.add("Continue from ${item.percent}%" to { ReadService.readSaved(this, item.id) })
-        actions.add((if (item.resumeFrom > 0.0) "Start over" else "Play from the start") to { ReadService.readSaved(this, item.id, fromStart = true) })
         actions.add("Follow along" to {
             if (ReadSession.savedId != item.id) ReadService.readSaved(this, item.id)
             startActivity(Intent(this, ReaderActivity::class.java))
@@ -1011,10 +1091,10 @@ class MainActivity : Activity() {
             if (ReadSession.savedId == item.id) ReadSession.savedId = null
             Saved.remove(this, item.id)
             renderSaved()
-            toast("Removed \u201c${item.title}\u201d.")
+            toast("Removed \u201c${niceTitle(item.title)}\u201d.")
         })
         android.app.AlertDialog.Builder(this)
-            .setTitle(item.title)
+            .setTitle(niceTitle(item.title))
             .setItems(actions.map { it.first }.toTypedArray()) { _, i -> actions[i].second() }
             .setNegativeButton("Close", null)
             .show()
@@ -1024,7 +1104,7 @@ class MainActivity : Activity() {
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
         box.setPadding(dp(22), dp(8), dp(22), 0)
-        val name = edit(box, "Name", item.title)
+        val name = edit(box, "Name", niceTitle(item.title))
         android.app.AlertDialog.Builder(this)
             .setTitle("Rename")
             .setView(box)
@@ -1061,6 +1141,7 @@ class MainActivity : Activity() {
     private fun applyTheme() {
         Look.load(prefs)
         reopenTab = currentTab
+        reopenMore = prefs.pureBlack != wasBlack
         recreate()
     }
 
@@ -1202,7 +1283,7 @@ class MainActivity : Activity() {
         val t = LinearLayout(this)
         t.orientation = LinearLayout.VERTICAL
         c.addView(t, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        label(t, "Lotus Aloud", 17f, bold = true)
+        label(t, "Voices", 17f, bold = true)
         val sub = label(t, "", 13f)
         chevron(c)
         c.setOnClickListener { selectTab(2) }
@@ -1213,7 +1294,7 @@ class MainActivity : Activity() {
         if (!::summaryText.isInitialized) return
         val name = prefs.voices.firstOrNull { it.id == prefs.mainVoice }?.name ?: "Fish default"
         val credit = if (::creditPill.isInitialized) creditPill.text.toString() else ""
-        val txt = "Main voice  $name" + if (credit.isNotBlank()) "  \u00b7  $credit" else ""
+        val txt = "Main voice  $name" + if (credit.isNotBlank()) "  \u00b7  $credit" else "  \u00b7  tap to add or change"
         val sp = android.text.SpannableString(txt)
         val st = txt.indexOf(name)
         sp.setSpan(ForegroundColorSpan(Look.soft), st, st + name.length, 0)
@@ -1362,7 +1443,7 @@ class MainActivity : Activity() {
                         "(it downloads the language once, about 30 MB).\n\n" +
                         "\u2022 Fish and ElevenLabs voices can speak it, including your own voice. " +
                         "Phone voices: pick one for that language in Voices.\n\n" +
-                        "\u2022 Tap \u201cOriginal\u201d on the Player tab to switch back."
+                        "\u2022 Tap \u201cOriginal\u201d on the Listen tab to switch back."
                 )
                 .setPositiveButton("Got it", null)
                 .show()
@@ -1700,6 +1781,7 @@ class MainActivity : Activity() {
             Phase.ERROR -> s.message
         }
         statusText.setTextColor(if (s.phase == Phase.ERROR) Color.parseColor("#D1242F") else labelColor())
+        nowCard.visibility = if (s.phase == Phase.IDLE) View.GONE else View.VISIBLE
         pauseBtn.text = if (s.phase == Phase.PAUSED) "Resume" else "Pause"
         setOn(pauseBtn, s.phase == Phase.PLAYING || s.phase == Phase.PAUSED)
         setOn(stopBtn, s.phase == Phase.LOADING || s.phase == Phase.PLAYING || s.phase == Phase.PAUSED)
@@ -1731,14 +1813,14 @@ class MainActivity : Activity() {
         line.setBackgroundColor(Look.line)
         parent.addView(line, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)))
         parent.addView(bar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        listOf("Player", "Saved", "Voices", "Settings").forEachIndexed { i, t ->
+        listOf("Listen", "Library", "Settings").forEachIndexed { i, t ->
             val tab = TextView(this)
             tab.text = t
             tab.gravity = Gravity.CENTER
             tab.textSize = 13f
             tab.letterSpacing = 0.02f
             tab.setPadding(0, dp(12), 0, dp(12))
-            tab.setOnClickListener { selectTab(i) }
+            tab.setOnClickListener { selectTab(TAB_PAGES[i]) }
             bar.addView(tab, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
             tabs.add(tab)
         }
@@ -1750,8 +1832,9 @@ class MainActivity : Activity() {
         if (i == 1) renderSaved()
         if (::topBar.isInitialized) topBar.visibility = if (i == 0) View.VISIBLE else View.GONE
         pages.forEachIndexed { n, p -> p.visibility = if (n == i) View.VISIBLE else View.GONE }
+        val tabIndex = if (i == 2) 2 else TAB_PAGES.indexOf(i)
         tabs.forEachIndexed { n, t ->
-            val on = n == i
+            val on = n == tabIndex
             t.setTextColor(if (on) Look.soft else mutedColor)
             t.setTypeface(null, if (on) Typeface.BOLD else Typeface.NORMAL)
             t.background = if (on) tabMark() else null

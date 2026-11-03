@@ -160,7 +160,7 @@ class ReaderActivity : Activity() {
         val list = mutableListOf<Sentence>()
         val splitter = Regex("[^.!?\\u2026\\u3002\\uFF01\\uFF1F\\n]+[.!?\\u2026\\u3002\\uFF01\\uFF1F]*[\"')\\]\\u201d\\u300D]*\\s*|\\n+")
         parts.forEachIndexed { pi, part ->
-            if (pi > 0) sb.append("\n\n")
+            if (pi > 0) sb.append(ReadSession.partSeps?.getOrNull(pi) ?: "\n\n")
             val partStart = sb.length
             for (m in splitter.findAll(part)) {
                 val chunk = m.value

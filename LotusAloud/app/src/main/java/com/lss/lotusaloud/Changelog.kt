@@ -5,6 +5,35 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "Multi-voice & a simpler app",
+            listOf(
+                "Multi-voice: tap Voices on a book in your Library. Lotus Aloud finds the narrator and each character, and you pick a voice for each one, like a real audiobook.",
+                "Rename characters, join two names that are the same person, or give their lines to the narrator. Tap the play button to hear how each one sounds.",
+                "Three tabs now: Listen, Library and Settings. Your voices are at the top of Settings.",
+                "Listen keeps just the essentials: paste and Read, Document, Photo. Now playing only shows while something is playing.",
+                "Library holds your saved documents and recent reads together.",
+                "Settings shows the basics first (voices, speed, language, theme). Everything else is under More settings.",
+            ),
+        ),
+        Entry(
+            "Saved Reads, your way",
+            listOf(
+                "Saved Reads now only keeps documents you add yourself: tap Add a document on the Saved tab, or Read a document on the Player tab.",
+                "Webpages, pasted text and files shared from other apps are no longer saved automatically.",
+                "Shared a file you already saved? It still carries on from your spot.",
+                "Each saved read now has its own Play, Restart and More buttons. Play turns into Pause while it reads.",
+                "The progress bar moves while you listen, and file names look tidier (no underscores).",
+            ),
+        ),
+        Entry(
+            "Webpages that wouldn't open",
+            listOf(
+                "Sites that turned Lotus Aloud away (\u201cerror 403\u201d) now open in a hidden browser view on your phone, the same way they load when you visit them.",
+                "If a site still won't allow it, you get a clear tip instead of an error number.",
+                "You can type a site without https:// (for example gamestop.com).",
+            ),
+        ),
+        Entry(
             "A cleaner look",
             listOf(
                 "Emoji are gone from buttons, tabs, menus and cards. Everything is plain, easy-to-read text, with your theme color.",
