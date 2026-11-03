@@ -29,14 +29,18 @@ object Cast {
 
     private const val NAME = "((?:(?:Mr|Mrs|Ms|Dr|Miss|Lady|Lord|Sir|Captain|Professor|Aunt|Uncle|King|Queen|Prince|Princess)\\.?\\s+)?" +
         "[A-Z][\\p{Ll}'\\u2019-]+(?:\\s+[A-Z][\\p{Ll}'\\u2019-]+)?)"
-    private const val PRONOUN = "(he|she|they|I|we|He|She|They|We)"
+    private const val PRONOUN = "(he|she|it|they|I|we|He|She|It|They|We)"
+    private const val NOUN = "((?:old|young|little|tall|short|small|big|tiny)\\s+\\p{Ll}+|\\p{Ll}{3,})"
 
     private val AFTER_NAME_VERB = Regex("^[\\s,\\u2014\\u2013-]*$NAME\\s+(?:\\p{Ll}+ly\\s+)?(?:$VERBS)\\b")
     private val AFTER_VERB_NAME = Regex("^[\\s,\\u2014\\u2013-]*(?:$VERBS)\\s+$NAME\\b")
-    private val AFTER_PRONOUN = Regex("^[\\s,\\u2014\\u2013-]*$PRONOUN\\s+(?:\\p{Ll}+ly\\s+)?(?:$VERBS)\\b|^[\\s,]*(?:$VERBS)\\s+(he|she)\\b")
+    private val AFTER_PRONOUN = Regex("^[\\s,\\u2014\\u2013-]*$PRONOUN\\s+(?:\\p{Ll}+ly\\s+)?(?:$VERBS)\\b|^[\\s,]*(?:$VERBS)\\s+(he|she|it)\\b")
+    private val AFTER_VERB_THE = Regex("^[\\s,\\u2014\\u2013-]*(?:$VERBS)\\s+the\\s+$NOUN(?=\\s*[.,!?;]|\\s+(?:and|as|with|softly|quietly|again)\\b)")
+    private val AFTER_THE_VERB = Regex("^[\\s,\\u2014\\u2013-]*[Tt]he\\s+$NOUN\\s+(?:\\p{Ll}+ly\\s+)?(?:$VERBS)\\b")
     private val AFTER_BEAT = Regex("^\\s+$NAME\\s+\\p{Ll}+")
     private val BEFORE_NAME_VERB = Regex("$NAME\\s+(?:[\\p{Ll}'\\u2019]+\\s+){0,4}?(?:$VERBS)\\b[^.!?\\u201c\\u201d\"]*[,:]?\\s*$")
     private val BEFORE_PRONOUN = Regex("\\b$PRONOUN\\s+(?:[\\p{Ll}'\\u2019]+\\s+){0,3}?(?:$VERBS)\\b[^.!?]*[,:]?\\s*$")
+    private val BEFORE_PRONOUN_BEAT = Regex("(?:^|[.!?]\\s+)(He|She|It|They)\\s+\\p{Ll}[^.!?]*[.!?]\\s*$")
     private val BEFORE_BEAT = Regex("(?:^|[.!?]\\s+)$NAME\\s+\\p{Ll}[^.!?]*[.!?]\\s*$")
 
     private val NOT_NAMES = setOf(
@@ -101,7 +105,7 @@ object Cast {
             .map { Quote(it.range.first, it.range.last + 1, paraOf(it.range.first), it.groupValues[1].trim()) }.toList()
 
         // 1. Who says it, from the words around the quote.
-        val pronounQuotes = HashSet<Quote>()
+        val pronounQuotes = HashMap<Quote, String>()
         quotes.forEachIndexed { i, q ->
             val prevInPara = quotes.getOrNull(i - 1)?.takeIf { it.para == q.para }
             val nextInPara = quotes.getOrNull(i + 1)?.takeIf { it.para == q.para }
@@ -109,11 +113,18 @@ object Cast {
             val before = text.substring(maxOf(prevInPara?.end ?: paraStarts[q.para], q.start - 160), q.start)
             val name = AFTER_NAME_VERB.find(after)?.groupValues?.get(1)?.let(::cleanName)
                 ?: AFTER_VERB_NAME.find(after)?.groupValues?.get(1)?.let(::cleanName)
+                ?: (AFTER_VERB_THE.find(after) ?: AFTER_THE_VERB.find(after))?.groupValues?.get(1)?.let { "The " + it.trim() }
                 ?: if (prevInPara == null) BEFORE_NAME_VERB.find(before)?.groupValues?.get(1)?.let(::cleanName) else null
+            val pron = AFTER_PRONOUN.find(after)?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() }
+                ?: if (prevInPara == null) {
+                    BEFORE_PRONOUN.find(before)?.groupValues?.get(1)
+                        ?: if (BEFORE_BEAT.find(before)?.groupValues?.get(1)?.let(::cleanName) == null) BEFORE_PRONOUN_BEAT.find(before)?.groupValues?.get(1) else null
+                } else null
             if (name != null) {
                 q.speaker = name
-            } else if (AFTER_PRONOUN.containsMatchIn(after) || (prevInPara == null && BEFORE_PRONOUN.containsMatchIn(before))) {
-                pronounQuotes.add(q)
+            } else if (pron != null) {
+                pronounQuotes[q] = pron.lowercase()
+                q.speaker = null
             } else {
                 val beat = AFTER_BEAT.find(after)?.groupValues?.get(1)?.let(::cleanName)
                     ?: if (prevInPara == null) BEFORE_BEAT.find(before)?.groupValues?.get(1)?.let(::cleanName) else null
@@ -121,6 +132,42 @@ object Cast {
             }
         }
 
+
+        // 1b. "she said" / "it said": the last character mentioned in the story text just before (not inside quotes).
+        val known = quotes.mapNotNull { it.speaker }.toSet()
+        val people = known.filter { !it.startsWith("The ") }
+        val things = known.filter { it.startsWith("The ") }
+        quotes.forEachIndexed { i, q ->
+            val pron = pronounQuotes[q] ?: return@forEachIndexed
+            if (pron == "i" || pron == "we" || pron == "they") return@forEachIndexed
+            val prevInPara = quotes.getOrNull(i - 1)?.takeIf { it.para == q.para }
+            if (prevInPara?.speaker != null) { q.speaker = prevInPara.speaker; return@forEachIndexed }
+            if (pron == "it") {
+                q.speaker = quotes.subList(0, i).lastOrNull { it.speaker?.startsWith("The ") == true }?.speaker
+                    ?: things.firstOrNull()
+                return@forEachIndexed
+            }
+            val from = maxOf(0, q.start - 600)
+            val sb = StringBuilder(text.substring(from, q.start))
+            quotes.filter { it.end > from && it.start < q.start }.forEach { o ->
+                for (k in maxOf(o.start, from) until minOf(o.end, q.start)) sb.setCharAt(k - from, ' ')
+            }
+            val narration = sb.toString()
+            var best: String? = null
+            var bestAt = -1
+            for (p in people) {
+                val keys = listOf(p) + p.split(" ").filter { it.length > 2 && it !in NOT_NAMES && !it.endsWith(".") }
+                for (k in keys) {
+                    val at = Regex("\\b" + Regex.escape(k) + "\\b").findAll(narration).lastOrNull()?.range?.first ?: -1
+                    if (at > bestAt) { bestAt = at; best = p }
+                }
+            }
+            // The person who just spoke is rarely "he" in the reply, so then it's the other person in the conversation.
+            val earlier = quotes.subList(0, i).filter { it.speaker != null && it.para != q.para }
+            val lastSpeaker = earlier.lastOrNull()?.speaker
+            val otherSpeaker = earlier.lastOrNull { it.speaker != lastSpeaker }?.speaker
+            q.speaker = if (best != null && best == lastSpeaker && otherSpeaker != null) otherSpeaker else best ?: otherSpeaker
+        }
 
         // 2. Lines with no name: same paragraph = same speaker, otherwise people take turns.
         var last: String? = null
@@ -131,10 +178,10 @@ object Cast {
             if (q.speaker == null) {
                 q.speaker = when {
                     prev != null && prev.para == q.para && prev.speaker != null -> prev.speaker
-                    q.para - lastPara <= 2 && beforeLast != null && beforeLast != last -> beforeLast
+                    q.para - lastPara <= 2 && beforeLast != null && beforeLast != last &&
+                        text.substring(paraStarts[q.para], q.start).isBlank() -> beforeLast
                     else -> null
                 }
-                if (q in pronounQuotes && q.speaker == null && last != null && q.para == lastPara) q.speaker = last
             }
             val s = q.speaker
             if (s != null && s != last) { beforeLast = last; last = s }
