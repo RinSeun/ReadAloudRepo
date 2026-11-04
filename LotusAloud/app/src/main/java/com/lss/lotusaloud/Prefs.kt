@@ -35,7 +35,6 @@ class Prefs(context: Context) {
             }
         }
 
-    /** Which voice reads each language ("ko" -> voice id). Missing = automatic. */
     fun langVoice(lang: String): String? = try {
         JSONObject(sp.getString("langVoices", "{}") ?: "{}").optString(lang, "").ifBlank { null }
     } catch (e: Exception) { null }
@@ -58,6 +57,10 @@ class Prefs(context: Context) {
     var pureBlack: Boolean
         get() = sp.getBoolean("pureBlack", false)
         set(v) { sp.edit().putBoolean("pureBlack", v).apply() }
+
+    var cloudNoteSeen: Boolean
+        get() = sp.getBoolean("cloudNoteSeen", false)
+        set(v) { sp.edit().putBoolean("cloudNoteSeen", v).apply() }
 
     var smartSkip: Boolean
         get() = sp.getBoolean("smartSkip", true)
@@ -113,12 +116,8 @@ class Prefs(context: Context) {
             sp.edit().putString("voices", arr.toString()).apply()
         }
 
-    /**
-     * Fresh installs start with the phone's free voice. Someone updating from a version that came
-     * with the built-in Fish voice (and who has a Fish key) keeps it, so nothing changes under them.
-     */
     private fun firstVoices(): List<Voice> {
-        val list = if (!Edition.PLAY && apiKey.isNotBlank())
+        val list = if (!Edition.PLAY && apiKey.isNotBlank() && LEGACY_VOICE.isNotBlank())
             listOf(Voice("My voice", LEGACY_VOICE))
         else
             listOf(Voice(Edition.DEFAULT_VOICE_NAME, DEFAULT_VOICE))
@@ -162,9 +161,9 @@ class Prefs(context: Context) {
         set(v) { sp.edit().putInt("seenChanges", v).apply() }
 
     companion object {
-        const val RELEASES_URL = "https://github.com/RinSeun/ReadAloudRepo/releases"
+        val RELEASES_URL: String get() = BuildConfig.RELEASES_URL
         val DEFAULT_VOICE: String get() = Edition.DEFAULT_VOICE
-        const val LEGACY_VOICE = "19beff0760174a6e92a34eafbfbeada7"
+        val LEGACY_VOICE: String get() = BuildConfig.MY_VOICE
         const val DEFAULT_MODEL = "s2.1-pro"
         val MODELS = listOf("s2.1-pro", "s2.1-pro-free", "s2-pro", "s1")
 

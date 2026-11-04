@@ -36,7 +36,6 @@ object Phrasebook {
         return row[i] + end
     }
 
-    /** One or two words with no punctuation translate badly; make it look like a sentence. */
     fun asSentence(text: String): String {
         val t = text.trim()
         if (t.length > 40 || t.contains('\n')) return text

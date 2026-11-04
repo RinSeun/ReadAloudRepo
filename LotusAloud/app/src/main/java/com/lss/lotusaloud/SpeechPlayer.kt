@@ -34,12 +34,10 @@ class SpeechPlayer {
         private const val DISK_CACHE_MAX = 30
         private const val DISK_CACHE_BYTES = 40L * 1024 * 1024
 
-        /** Deletes all saved audio (used by "Clear recent reads"). */
         fun clearSaved(ctx: Context) {
             File(ctx.cacheDir, "reads").listFiles()?.forEach { it.delete() }
         }
 
-        /** How much room saved audio takes, in bytes. */
         fun savedBytes(ctx: Context): Long = File(ctx.cacheDir, "reads").listFiles()?.sumOf { it.length() } ?: 0L
 
         val shared = SpeechPlayer()
@@ -181,6 +179,31 @@ class SpeechPlayer {
         val key = sha1(Providers.cacheKey(text, voiceId, cfg))
         if (findCached(key) != null) return
         fetch(key, text, voiceId, cfg)
+    }
+
+    @Volatile private var prefetchGen = 0
+
+    fun prefetchInOrder(items: List<Pair<String, String>>, cfg: TtsConfig, together: Int = 1) {
+        val myGen = ++prefetchGen
+        Thread({
+            val running = ArrayList<Fetch>()
+            for ((text, voiceId) in items) {
+                if (prefetchGen != myGen) return@Thread
+                val key = sha1(Providers.cacheKey(text, voiceId, cfg))
+                if (findCached(key) != null) continue
+                running.add(fetch(key, text, voiceId, cfg))
+                while (running.size >= together) {
+                    val first = running.removeAt(0)
+                    synchronized(first.lock) {
+                        val until = System.currentTimeMillis() + 60_000
+                        while (!first.done && !first.cancelled && System.currentTimeMillis() < until) {
+                            first.lock.wait(500)
+                        }
+                    }
+                    if (prefetchGen != myGen) return@Thread
+                }
+            }
+        }, "lotus-prefetch").start()
     }
 
     fun cancelPrefetches() {

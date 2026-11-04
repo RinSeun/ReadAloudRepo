@@ -34,7 +34,6 @@ object Translate {
 
     fun label(code: String): String = LANGS.firstOrNull { it.second == code }?.first ?: code
 
-    /** The language the text is in ("ko", "en"...), or "" if unsure. Runs on a background thread. */
     fun detect(text: String): String {
         val id = LanguageIdentification.getClient()
         return try {

@@ -30,15 +30,16 @@ object Article {
 
     class Result(val title: String, val text: String)
 
-    /** Some sites (big stores, news paywalls) turn away simple requests. Those are opened in a hidden
-     *  browser view on the phone instead, the same way the page would load if you opened it yourself. */
     fun fetch(ctx: Context, link: String): Result {
+        val safe = if (link.startsWith("http://", ignoreCase = true)) "https://" + link.substring(7) else link
         return try {
-            fetchDirect(link)
+            fetchDirect(safe)
         } catch (e: Blocked) {
-            fetchInBrowser(ctx, link)
+            fetchInBrowser(ctx, safe)
         }
     }
+
+    private val ERROR_PAGE = Regex("net::ERR_|ERR_[A-Z_]{6,}|Webpage not available|This site can.t be reached|DNS_PROBE", RegexOption.IGNORE_CASE)
 
     private class Blocked : Exception()
 
@@ -60,6 +61,7 @@ object Article {
                 if (code in 300..399) {
                     val next = c.getHeaderField("Location") ?: throw Exception("That link redirects nowhere.")
                     url = URL(URL(url), next).toString()
+                    if (url.startsWith("http://", ignoreCase = true)) url = "https://" + url.substring(7)
                     c.disconnect()
                     continue
                 }
@@ -85,7 +87,6 @@ object Article {
         }
     }
 
-    /** Pulls the readable text out of a page, or null if there's hardly anything there (pages built by scripts). */
     private fun extract(doc: Document, url: String): Result? {
         run {
             val title = (doc.selectFirst("meta[property=og:title]")?.attr("content")?.trim().orEmpty())
@@ -116,6 +117,7 @@ object Article {
         val main = Handler(Looper.getMainLooper())
         val done = CountDownLatch(1)
         var html: String? = null
+        var failed = false
         var finalUrl = link
         var view: WebView? = null
         main.post {
@@ -127,6 +129,21 @@ object Article {
                 w.settings.blockNetworkImage = true
                 w.webViewClient = object : WebViewClient() {
                     private var grabbed = false
+                    override fun shouldOverrideUrlLoading(v: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                        val u = request.url.toString()
+                        if (u.startsWith("http://", ignoreCase = true)) {
+                            v.loadUrl("https://" + u.substring(7))
+                            return true
+                        }
+                        return false
+                    }
+                    override fun onReceivedError(v: WebView, request: android.webkit.WebResourceRequest, error: android.webkit.WebResourceError) {
+                        if (request.isForMainFrame && !grabbed) {
+                            grabbed = true
+                            failed = true
+                            done.countDown()
+                        }
+                    }
                     override fun onPageFinished(v: WebView, url: String) {
                         if (grabbed) return
                         grabbed = true
@@ -147,13 +164,18 @@ object Article {
         val finished = done.await(25, TimeUnit.SECONDS)
         main.post { view?.stopLoading(); view?.destroy() }
         val page = html
+        if (failed) throw Exception(OPEN_FAILED_TEXT)
         if (!finished || page.isNullOrBlank()) throw Exception(BLOCKED_TEXT)
         val doc = Jsoup.parse(page, finalUrl)
+        if (ERROR_PAGE.containsMatchIn(doc.title()) || ERROR_PAGE.containsMatchIn(doc.text().take(600))) throw Exception(OPEN_FAILED_TEXT)
         val blockedPage = doc.title().contains("access denied", true) || doc.title().contains("just a moment", true) ||
             doc.text().contains("verify you are human", true)
         if (blockedPage) throw Exception(BLOCKED_TEXT)
         return extract(doc, finalUrl) ?: throw Exception(BLOCKED_TEXT)
     }
+
+    private const val OPEN_FAILED_TEXT =
+        "Couldn't open that page. Check the link, or open it in your browser, highlight the text and tap Read audio."
 
     private const val BLOCKED_TEXT =
         "That website doesn't let reading apps open it. Open it in your browser, highlight the text and tap Read audio (or Share it to Lotus Aloud from the page)."

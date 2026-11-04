@@ -2,7 +2,6 @@ package com.lss.lotusaloud
 
 import android.graphics.Color
 
-/** The app's colors. Lotus is the original look; the others swap the accent and tint the greys to match. */
 object Look {
     class Theme(val name: String, val accent: Int)
 
@@ -82,7 +81,6 @@ object Look {
         return Color.rgb(ch(Color.red(a), Color.red(b)), ch(Color.green(a), Color.green(b)), ch(Color.blue(a), Color.blue(b)))
     }
 
-    /** Keeps the brightness of a grey but gives it a hint of the accent color instead of Lotus purple. */
     private fun tint(c: Int, a: Int): Int {
         val grey = (Color.red(c) + Color.green(c) + Color.blue(c)) / 3
         val g = Color.rgb(grey, grey, grey)

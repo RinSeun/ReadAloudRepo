@@ -20,6 +20,8 @@ android {
         buildConfigField("String", "SUPPORT_EMAIL", "\"\"")
         buildConfigField("String", "PRIVACY_URL", "\"\"")
         buildConfigField("String", "REPORT_WEBHOOK", "\"\"")
+        buildConfigField("String", "RELEASES_URL", "\"https://github.com/RinSeun/ReadAloudRepo/releases\"")
+        buildConfigField("String", "MY_VOICE", "\"19beff0760174a6e92a34eafbfbeada7\"")
     }
 
     signingConfigs {

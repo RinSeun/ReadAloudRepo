@@ -59,12 +59,10 @@ class ReadService : Service() {
             ctx.startForegroundService(i)
         }
 
-        /** Reads what's playing again in the newly picked language, from about the same spot. */
         fun retranslate(ctx: Context) {
             ctx.startForegroundService(Intent(ctx, ReadService::class.java).setAction(ACTION_RETRANSLATE))
         }
 
-        /** save = true adds it to Saved Reads (the "Add a document" and "Read a document" buttons). */
         fun readDocument(ctx: Context, path: String, mime: String?, name: String?, save: Boolean = false) {
             val i = Intent(ctx, ReadService::class.java).setAction(ACTION_READ_DOC)
                 .putExtra(EXTRA_PATHS, arrayOf(path)).putExtra(EXTRA_MIME, mime).putExtra(EXTRA_NAME, name)
@@ -72,7 +70,6 @@ class ReadService : Service() {
             ctx.startForegroundService(i)
         }
 
-        /** Plays a Saved Read from where it stopped (or from the start). */
         fun readSaved(ctx: Context, id: String, fromStart: Boolean = false) {
             ctx.startForegroundService(
                 Intent(ctx, ReadService::class.java).setAction(ACTION_READ_SAVED)
@@ -112,7 +109,9 @@ class ReadService : Service() {
     private lateinit var session: MediaSession
     private var focusRequest: AudioFocusRequest? = null
 
-    @Volatile private var preparing: String? = null
+    private var preparing: String?
+        get() = ReadSession.preparing
+        set(v) { ReadSession.preparing = v }
     private var lastSpotAt = 0L
     private var lastSpotPhase: Phase? = null
     private val tick = object : Runnable {
@@ -361,7 +360,6 @@ class ReadService : Service() {
         if (rest in 0.03..0.97) ReadSession.pendingFraction = rest
     }
 
-    /** Multi-voice: the narrator and each character read their own lines. */
     private fun startCast(raw: String, bookTitle: String, id: String, setup: CastSetup, from: Double) {
         val prefs = Prefs(this)
         player.stop()
@@ -431,7 +429,8 @@ class ReadService : Service() {
         val voice = ReadSession.voiceFor(i)
         val reach = if (ReadSession.partVoices != null) 5 else 3
         val ahead = (i + 1..i + reach).mapNotNull { n -> parts.getOrNull(n)?.let { it to ReadSession.voiceFor(n) } }
-        player.speak(parts[i], voice, cfg, quickStart = i == 0) { ahead.forEach { (t, v) -> player.prefetch(t, v, cfg) } }
+        val together = if (ReadSession.partVoices != null) 2 else 1
+        player.speak(parts[i], voice, cfg, quickStart = i == 0) { player.prefetchInOrder(ahead, cfg, together) }
         handler.removeCallbacks(tick)
         handler.post(tick)
     }
@@ -449,6 +448,7 @@ class ReadService : Service() {
     }
 
     override fun onDestroy() {
+        preparing = null
         handler.removeCallbacks(tick)
         abandonFocus()
         session.isActive = false
@@ -515,7 +515,6 @@ class ReadService : Service() {
         handler.postDelayed(tick, 400)
     }
 
-    /** Saves where you are in a Saved Read every few seconds, and when you pause or finish. */
     private fun rememberSpot(s: SpeechPlayer.State) {
         val id = ReadSession.savedId ?: return
         val count = ReadSession.count
@@ -590,10 +589,10 @@ class ReadService : Service() {
         val smallIcon = resources.getIdentifier("ic_notif", "drawable", packageName).takeIf { it != 0 }
             ?: android.R.drawable.ic_media_play
         val timeText = if (s.streaming || s.duration <= 0.0) fmt(s.current) else "${fmt(s.current)} / ${fmt(s.duration)}"
-        val partInfo = if (ReadSession.count > 1) " \u00b7 Part ${ReadSession.index + 1}/${ReadSession.count}" else ""
+        val partInfo = if (ReadSession.count > 1) " · Part ${ReadSession.index + 1}/${ReadSession.count}" else ""
         val (head, text) = if (preparing != null) (preparing ?: "") to "Lotus Aloud" else when (s.phase) {
             Phase.LOADING -> "Generating audio..." to "${(now - s.since) / 1000}s"
-            Phase.PLAYING -> (if (s.streaming) "Playing \u00b7 live" else "Playing") to timeText + partInfo
+            Phase.PLAYING -> (if (s.streaming) "Playing · live" else "Playing") to timeText + partInfo
             Phase.PAUSED -> "Paused" to timeText + partInfo
             Phase.ENDED -> "Done" to ""
             Phase.ERROR -> "Couldn't read that" to s.message

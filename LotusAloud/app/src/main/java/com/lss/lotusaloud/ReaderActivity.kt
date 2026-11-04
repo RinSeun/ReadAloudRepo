@@ -129,7 +129,7 @@ class ReaderActivity : Activity() {
         row.gravity = Gravity.CENTER
         panel.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         prevBtn = ctrl(row, "", glyph = Glyph.Kind.PREV) { ReadService.control(this, ReadService.ACTION_PREV_PART) }
-        ctrl(row, "\u221210s") { player.skip(-10.0) }
+        ctrl(row, "−10s") { player.skip(-10.0) }
         playBtn = ctrl(row, "", big = true, glyph = Glyph.Kind.PAUSE) { player.togglePause() }
         ctrl(row, "+10s") { player.skip(10.0) }
         nextBtn = ctrl(row, "", glyph = Glyph.Kind.NEXT) { ReadService.control(this, ReadService.ACTION_NEXT_PART) }

@@ -3,13 +3,6 @@ package com.lss.lotusaloud
 import android.content.Context
 
 object LangVoices {
-    /**
-     * Which voice should read text in [lang]:
-     * 1. the voice you picked for that language, if any;
-     * 2. if your main voice is a phone voice that speaks another language, the phone's voice for [lang];
-     * 3. otherwise null (= your main voice; Fish and ElevenLabs voices speak many languages).
-     * Runs on a background thread.
-     */
     fun pick(ctx: Context, prefs: Prefs, lang: String): String? {
         if (lang.isBlank()) return null
         prefs.langVoice(lang)?.let { id ->

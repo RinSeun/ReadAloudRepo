@@ -11,7 +11,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Handler
@@ -49,23 +48,45 @@ class BubbleService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var wm: WindowManager? = null
     private var bubble: View? = null
-    private lateinit var ring: GradientDrawable
+    private lateinit var ring: SpinRing
+    private var tappedAt = 0L
     private lateinit var lp: WindowManager.LayoutParams
     private val player get() = SpeechPlayer.shared
 
+    private fun working(): Boolean {
+        val phase = player.snapshot().phase
+        if (phase == SpeechPlayer.Phase.PLAYING || phase == SpeechPlayer.Phase.PAUSED || phase == SpeechPlayer.Phase.ERROR) return false
+        return ReadSession.preparing != null || phase == SpeechPlayer.Phase.LOADING ||
+            System.currentTimeMillis() - tappedAt < 4000
+    }
+
     private val poll = object : Runnable {
         override fun run() {
-            val color = when (player.snapshot().phase) {
-                SpeechPlayer.Phase.LOADING -> Color.parseColor("#8250DF")
-                SpeechPlayer.Phase.PLAYING -> Color.parseColor("#2EA043")
-                SpeechPlayer.Phase.PAUSED -> Color.parseColor("#D29922")
-                SpeechPlayer.Phase.ERROR -> Color.parseColor("#F85149")
-                else -> Color.TRANSPARENT
+            val phase = player.snapshot().phase
+            if (working()) {
+                ring.spin(Color.parseColor("#B78CFF"))
+            } else {
+                ring.solid(
+                    when (phase) {
+                        SpeechPlayer.Phase.PLAYING -> Color.parseColor("#2EA043")
+                        SpeechPlayer.Phase.PAUSED -> Color.parseColor("#D29922")
+                        SpeechPlayer.Phase.ERROR -> Color.parseColor("#F85149")
+                        else -> Color.TRANSPARENT
+                    }
+                )
             }
-            ring.setStroke(dp(3), color)
-
-            handler.postDelayed(this, if (color == Color.TRANSPARENT) 2000 else 400)
+            handler.postDelayed(this, if (ring.idle) 1000 else 250)
         }
+    }
+
+    private fun showWorking() {
+        tappedAt = System.currentTimeMillis()
+        ring.spin(Color.parseColor("#B78CFF"))
+        bubble?.animate()?.scaleX(0.86f)?.scaleY(0.86f)?.setDuration(90)?.withEndAction {
+            bubble?.animate()?.scaleX(1f)?.scaleY(1f)?.setDuration(160)?.start()
+        }?.start()
+        handler.removeCallbacks(poll)
+        handler.postDelayed(poll, 250)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -97,6 +118,7 @@ class BubbleService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(poll)
+        if (::ring.isInitialized) ring.solid(Color.TRANSPARENT)
         bubble?.let { try { wm?.removeView(it) } catch (e: Exception) {} }
         bubble = null
         super.onDestroy()
@@ -132,18 +154,13 @@ class BubbleService : Service() {
         val size = dp(56)
 
         val container = FrameLayout(this)
-        ring = GradientDrawable()
-        ring.shape = GradientDrawable.OVAL
-        ring.setColor(Color.TRANSPARENT)
-        ring.setStroke(dp(3), Color.TRANSPARENT)
+        ring = SpinRing(this, dp(3).toFloat())
         val icon = ImageView(this)
         icon.setImageResource(resources.getIdentifier("ic_bubble", "drawable", packageName))
         icon.contentDescription = "Lotus Read"
         icon.scaleType = ImageView.ScaleType.FIT_CENTER
         container.addView(icon, FrameLayout.LayoutParams(size, size))
-        val ringView = View(this)
-        ringView.background = ring
-        container.addView(ringView, FrameLayout.LayoutParams(size, size))
+        container.addView(ring, FrameLayout.LayoutParams(size, size))
         container.elevation = dp(6).toFloat()
         container.alpha = 0.92f
 
@@ -226,6 +243,10 @@ class BubbleService : Service() {
     }
 
     private fun onTap() {
+        if (ReadSession.preparing != null) {
+            Toast.makeText(this, ReadSession.preparing, Toast.LENGTH_SHORT).show()
+            return
+        }
         if (!Prefs(this).shotsOn) {
             if (player.isBusy()) player.stop() else readClipboard()
             return
@@ -247,10 +268,12 @@ class BubbleService : Service() {
     }
 
     private fun readClipboard() {
+        showWorking()
         startActivity(Intent(this, ClipReadActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun readLatestScreenshot() {
+        showWorking()
         if (Edition.PLAY) {
             startActivity(Intent(this, PickImageActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return

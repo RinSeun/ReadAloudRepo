@@ -113,7 +113,6 @@ object Documents {
     private val SPINE_REF = Regex("<itemref\\s[^>]*idref=\"([^\"]+)\"")
     private fun attr(tag: String, name: String) = Regex("\\s$name=\"([^\"]*)\"").find(tag)?.groupValues?.get(1)
 
-    /** EPUB books (without DRM): the chapters in reading order. Returns (book title, text). */
     private fun epub(file: File, progress: (Int, Int) -> Unit): Pair<String?, String> {
         try {
             ZipFile(file).use { zip ->
@@ -175,9 +174,9 @@ object Documents {
             val code = m.groupValues[2].toIntOrNull(if (m.groupValues[1].isEmpty()) 10 else 16)
             if (code != null && code in 1..0x10FFFF) String(Character.toChars(code)) else " "
         }
-        t = unescape(t.replace("&nbsp;", " ").replace("&mdash;", "\u2014").replace("&ndash;", "\u2013")
-            .replace("&rsquo;", "\u2019").replace("&lsquo;", "\u2018").replace("&rdquo;", "\u201d").replace("&ldquo;", "\u201c")
-            .replace("&hellip;", "\u2026"))
+        t = unescape(t.replace("&nbsp;", " ").replace("&mdash;", "—").replace("&ndash;", "–")
+            .replace("&rsquo;", "’").replace("&lsquo;", "‘").replace("&rdquo;", "”").replace("&ldquo;", "“")
+            .replace("&hellip;", "…"))
         return t.split(Regex("\\n\\s*\\n")).map { it.replace(Regex("\\s+"), " ").trim() }.filter { it.isNotEmpty() }.joinToString("\n\n")
     }
 

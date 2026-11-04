@@ -6,10 +6,6 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 
-/**
- * Saved Reads: documents, articles and long texts you can come back to.
- * Only the text and where you stopped are kept on the phone (no audio), so it stays small.
- */
 data class SavedRead(
     val id: String,
     val title: String,
@@ -42,7 +38,6 @@ data class SavedRead(
     }
 }
 
-/** Who reads what in a multi-voice book. Keys are character names; "" is the narrator, "?" is lines nobody was found for. */
 class CastSetup(
     var on: Boolean,
     var narrator: String,
@@ -62,7 +57,6 @@ object Saved {
     private fun textFile(ctx: Context, id: String) = File(dir(ctx), "$id.txt")
     private fun castFile(ctx: Context, id: String) = File(dir(ctx), "$id.cast.json")
 
-    /** The multi-voice setup for a saved read, or null if it was never scanned. */
     fun cast(ctx: Context, id: String): CastSetup? = try {
         val f = castFile(ctx, id)
         if (!f.exists()) null else {
@@ -111,13 +105,11 @@ object Saved {
         null
     }
 
-    /** The saved read with exactly this text, if you've already added it (so it can carry on from your spot). */
     fun find(ctx: Context, text: String): SavedRead? {
         val id = hash(text.take(MAX_TEXT_CHARS))
         return list(ctx).firstOrNull { it.id == id }
     }
 
-    /** Adds a read, or returns the one already saved with the same text (so it can carry on where it stopped). */
     fun add(ctx: Context, title: String, text: String, kind: String): SavedRead = synchronized(lock) {
         val body = text.take(MAX_TEXT_CHARS)
         val id = hash(body)
@@ -154,7 +146,6 @@ object Saved {
         dir(ctx).listFiles()?.forEach { it.delete() }
     }
 
-    /** Changes whenever the shelf changes, so the screen knows when to redraw. */
     fun stamp(ctx: Context): Long = index(ctx).let { if (it.exists()) it.lastModified() * 31 + it.length() else 0L }
 
     fun bytes(ctx: Context): Long = dir(ctx).listFiles()?.sumOf { it.length() } ?: 0L

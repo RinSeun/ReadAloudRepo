@@ -1,9 +1,5 @@
 package com.lss.lotusaloud
 
-/**
- * Multi-voice: finds the dialogue in a story and works out who says each line,
- * so the narrator and every character can have their own voice. Runs on the phone, no AI service.
- */
 object Cast {
     const val NARRATOR = ""
     const val OTHER = "?"
@@ -54,12 +50,11 @@ object Cast {
         "On", "Of", "To", "By", "Into", "Through", "While", "Because", "Although", "Though", "Behind", "Outside",
     )
 
-    /** Picks the quote marks the book uses. */
     private fun quoteRegex(t: String): Regex {
-        val curly = t.count { it == '\u201c' }
+        val curly = t.count { it == '“' }
         val straight = t.count { it == '"' } / 2
-        val guill = t.count { it == '\u00ab' }
-        val cjk = t.count { it == '\u300c' }
+        val guill = t.count { it == '«' }
+        val cjk = t.count { it == '「' }
         val single = Regex("(?<![\\p{L}\\p{N}])\\u2018").findAll(t).count()
         val best = listOf(curly to 0, straight to 1, guill to 2, cjk to 3, single to 4).maxByOrNull { it.first }!!
         return when (best.second) {
@@ -73,7 +68,7 @@ object Cast {
 
     private fun cleanName(raw: String?): String? {
         if (raw == null) return null
-        var n = raw.trim().removeSuffix("'s").removeSuffix("\u2019s")
+        var n = raw.trim().removeSuffix("'s").removeSuffix("’s")
         val words = n.split(Regex("\\s+"))
         if (words.first().trimEnd('.') in NOT_NAMES) {
             if (words.size == 1) return null
@@ -104,7 +99,6 @@ object Cast {
         val quotes = qre.findAll(text).filter { it.groupValues[1].any { c -> c.isLetter() } }
             .map { Quote(it.range.first, it.range.last + 1, paraOf(it.range.first), it.groupValues[1].trim()) }.toList()
 
-        // 1. Who says it, from the words around the quote.
         val pronounQuotes = HashMap<Quote, String>()
         quotes.forEachIndexed { i, q ->
             val prevInPara = quotes.getOrNull(i - 1)?.takeIf { it.para == q.para }
@@ -132,8 +126,6 @@ object Cast {
             }
         }
 
-
-        // 1b. "she said" / "it said": the last character mentioned in the story text just before (not inside quotes).
         val known = quotes.mapNotNull { it.speaker }.toSet()
         val people = known.filter { !it.startsWith("The ") }
         val things = known.filter { it.startsWith("The ") }
@@ -162,14 +154,13 @@ object Cast {
                     if (at > bestAt) { bestAt = at; best = p }
                 }
             }
-            // The person who just spoke is rarely "he" in the reply, so then it's the other person in the conversation.
+
             val earlier = quotes.subList(0, i).filter { it.speaker != null && it.para != q.para }
             val lastSpeaker = earlier.lastOrNull()?.speaker
             val otherSpeaker = earlier.lastOrNull { it.speaker != lastSpeaker }?.speaker
             q.speaker = if (best != null && best == lastSpeaker && otherSpeaker != null) otherSpeaker else best ?: otherSpeaker
         }
 
-        // 2. Lines with no name: same paragraph = same speaker, otherwise people take turns.
         var last: String? = null
         var beforeLast: String? = null
         var lastPara = -10
@@ -188,7 +179,6 @@ object Cast {
             if (s != null) lastPara = q.para
         }
 
-        // 3. Join "Mia Chen" with "Mia", apply your renames, and send rare speakers to "Other voices".
         val counts = HashMap<String, Int>()
         quotes.forEach { q -> q.speaker?.let { counts[it] = (counts[it] ?: 0) + 1 } }
         val merge = HashMap<String, String>()
@@ -214,7 +204,6 @@ object Cast {
             if (s != NARRATOR && s != OTHER && (finalCounts[s] ?: 0) < 2 && !renames.containsValue(s)) q.speaker = OTHER
         }
 
-        // 4. Cut the text into narrator and character pieces, in reading order.
         val segs = ArrayList<Segment>()
         var pendingPara = false
         fun push(piece: String, speaker: String) {

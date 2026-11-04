@@ -11,10 +11,10 @@ object ReadSession {
 
     @Volatile var pendingFraction: Double? = null
 
-    /** The Saved Read being played (its spot is remembered), or null. */
     @Volatile var savedId: String? = null
 
-    /** Multi-voice: the voice for each part, and what goes between parts in Follow along. Null for a normal read. */
+    @Volatile var preparing: String? = null
+
     @Volatile var partVoices: List<String>? = null
     @Volatile var partSeps: List<String>? = null
 

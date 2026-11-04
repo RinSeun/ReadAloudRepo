@@ -43,7 +43,7 @@ class MainActivity : Activity() {
         const val EXTRA_ASK_SCREENSHOTS = "askScreenshots"
         private var reopenTab: Int? = null
         private var reopenMore = false
-        /** Listen, Library and Settings. Voices (page 2) opens from Settings. */
+
         private val TAB_PAGES = listOf(0, 1, 3)
         private const val SCREENSHOT_PERMISSION_REQUEST = 7
     }
@@ -139,6 +139,11 @@ class MainActivity : Activity() {
             page
         }
         buildTabBar(outer)
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+            ) { goBack() }
+        }
         var cur: LinearLayout
 
         val header = row(topBar, 0)
@@ -204,7 +209,7 @@ class MainActivity : Activity() {
         cur = nowCard
         statusText = label(cur, "Idle", 15f)
         val controls = row(cur, 10)
-        button(controls, "\u221210s", 1f) { player.skip(-10.0) }
+        button(controls, "−10s", 1f) { player.skip(-10.0) }
         pauseBtn = button(controls, "Pause", 1.4f, primary = true) { player.togglePause() }
         button(controls, "+10s", 1f) { player.skip(10.0) }
         val followRow = row(cur, 2)
@@ -253,7 +258,7 @@ class MainActivity : Activity() {
         cur.addView(historyBox, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         renderHistory()
 
-        val back = label(voicesPage, "\u2039  Settings", 15f, bold = true, color = Look.soft, top = 18)
+        val back = label(voicesPage, "‹  Settings", 15f, bold = true, color = Look.soft, top = 18)
         back.setPadding(dp(4), dp(6), dp(4), dp(6))
         back.setOnClickListener { selectTab(3) }
         bigTitle(voicesPage, "Voices")
@@ -290,6 +295,8 @@ class MainActivity : Activity() {
         addPickBtn = button(addRow, "", 1f) { pickVoice() }
         addBtn = button(addRow, "+ Add voice", 1f, primary = true) { addTypedVoice() }
         showAddService()
+        val consent = label(cur, "Only add voices you own or have permission to use.", 13f, bold = true, color = Look.soft, top = 10)
+        consent.gravity = Gravity.CENTER
 
         sectionLabel(voicesPage, "CONNECTED SERVICES")
         val services = group(voicesPage)
@@ -299,18 +306,18 @@ class MainActivity : Activity() {
         apiKeyEdit = edit(fishKeyBox, "Paste your Fish Audio key", prefs.apiKey)
         apiKeyEdit.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         linkLabel(fishKeyBox, "Get a key at fish.audio/app/api-keys", "https://fish.audio/app/api-keys")
-        button(row(fishKeyBox), "Save key", 1f, primary = true) { saveKey(); checkCredit(force = true); toast("Saved.") }
+        button(row(fishKeyBox), "Save key", 1f, primary = true) { saveCloudKey("Fish Audio") }
         divider(services)
         val eleven = serviceRow(services, "ElevenLabs")
         elevenStatus = eleven.first
         elevenKeyBox = eleven.second
         elevenKeyEdit = edit(elevenKeyBox, "Paste your ElevenLabs key", prefs.elevenKey)
         elevenKeyEdit.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-        linkLabel(elevenKeyBox, "Get a key at elevenlabs.io \u2192 Developers \u2192 API keys", "https://elevenlabs.io/app/developers/api-keys")
-        button(row(elevenKeyBox), "Save key", 1f, primary = true) { saveKey(); checkCredit(force = true); toast("Saved.") }
+        linkLabel(elevenKeyBox, "Get a key at elevenlabs.io → Developers → API keys", "https://elevenlabs.io/app/developers/api-keys")
+        button(row(elevenKeyBox), "Save key", 1f, primary = true) { saveCloudKey("ElevenLabs") }
         divider(services)
         val phone = serviceRow(services, "Your phone")
-        phone.first.text = "Built in \u00b7 free \u00b7 no key needed"
+        phone.first.text = "Built in · free · no key needed"
         (phone.first.tag as? View)?.background = rounded(Color.parseColor("#2EA043"), 99)
         refreshServices()
         label(voicesPage, "All voices are AI-generated. Hold a voice to remove it.", 12f, top = 10)
@@ -354,7 +361,7 @@ class MainActivity : Activity() {
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
         val slRow = row(speedBox, 8)
-        roundButton(slRow, "\u2212") { seek.progress = (seek.progress - 1).coerceAtLeast(0) }
+        roundButton(slRow, "−") { seek.progress = (seek.progress - 1).coerceAtLeast(0) }
         slRow.addView(seek, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         roundButton(slRow, "+") { seek.progress = (seek.progress + 1).coerceAtMost(15) }
         val ticks = row(speedBox, 2)
@@ -425,14 +432,14 @@ class MainActivity : Activity() {
         modelRow.first.setOnClickListener { pickModel(modelRow.second) }
         divider(g)
 
-        val moodRow = settingsRow(g, "Mood", Moods.label(prefs.mood) + " \u00b7 Fish voices", valuePink = true)
+        val moodRow = settingsRow(g, "Mood", Moods.label(prefs.mood) + " · Fish voices", valuePink = true)
         moodRow.first.setOnClickListener { pickMood(moodRow.second) }
         divider(g)
         settingsRow(g, "Voice for each language", "Native voices sound much better").first.setOnClickListener {
             val langs = Translate.LANGS.filter { it.second.isNotBlank() }
             android.app.AlertDialog.Builder(this)
                 .setTitle("Voice for each language")
-                .setItems(langs.map { "${it.first} \u00b7 ${langVoiceName(it.second)}" }.toTypedArray()) { _, i ->
+                .setItems(langs.map { "${it.first} · ${langVoiceName(it.second)}" }.toTypedArray()) { _, i ->
                     pickLangVoice(langs[i].second)
                 }
                 .setNegativeButton("Close", null)
@@ -493,15 +500,21 @@ class MainActivity : Activity() {
             if (on && !Edition.PLAY && !Screenshots.canRead(this)) askScreenshotAccess()
         }
         divider(g)
-        val tileRow = settingsRow(g, "Quick Settings tile", "Swipe down \u2192 Lotus Read")
+        val tileRow = settingsRow(g, "Quick Settings tile", "Swipe down → Lotus Read")
         tileRow.first.setOnClickListener {
             if (Build.VERSION.SDK_INT >= 33) requestTile()
-            else toast("Swipe down twice, tap the pencil (edit), and drag \u201cLotus Read\u201d into your tiles.")
+            else toast("Swipe down twice, tap the pencil (edit), and drag “Lotus Read” into your tiles.")
         }
 
         sectionLabel(settingsPage, "HELP")
         g = group(settingsPage)
         settingsRow(g, "How to use", null).first.setOnClickListener { showHowTo() }
+        divider(g)
+        settingsRow(g, "Cloud voices and your privacy", "What's sent where, and keeping your keys safe").first.setOnClickListener { showCloudNote() }
+        divider(g)
+        settingsRow(g, "Terms of use", null).first.setOnClickListener {
+            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Edition.TERMS_URL))) } catch (e: Exception) { toast("Couldn't open the browser.") }
+        }
         divider(g)
         settingsRow(g, "Test my voice", null).first.setOnClickListener {
             if (requireKey()) ReadService.read(this, "Hello! Lotus Aloud is working.", record = false)
@@ -546,14 +559,16 @@ class MainActivity : Activity() {
         }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
+    private fun goBack() {
         when (currentTab) {
             2 -> selectTab(3)
-            0 -> super.onBackPressed()
+            0 -> finish()
             else -> selectTab(0)
         }
     }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() = goBack()
 
     override fun onResume() {
         super.onResume()
@@ -595,7 +610,7 @@ class MainActivity : Activity() {
         val service = Providers.of(prefs.mainVoice)
         val left = Credit.elevenLeft
         val (text, color) = when {
-            service == Providers.PHONE -> "Phone voice \u00b7 free" to mutedColor
+            service == Providers.PHONE -> "Phone voice · free" to mutedColor
             service == Providers.ELEVEN && prefs.elevenKey.isBlank() -> "Add your ElevenLabs key below" to mutedColor
             service == Providers.ELEVEN && creditText.isNotEmpty() -> creditText to creditColor
             service == Providers.ELEVEN && left == null -> "Checking ElevenLabs..." to mutedColor
@@ -603,10 +618,10 @@ class MainActivity : Activity() {
                 "ElevenLabs: only $left characters left" to Color.parseColor("#FFB020")
             service == Providers.ELEVEN -> "ElevenLabs: ${"%,d".format(left)} characters left" to mutedColor
             key.isBlank() -> "Add your Fish API key below" to mutedColor
-            prefs.model.contains("free") -> "Free model \u00b7 no credit used" to mutedColor
+            prefs.model.contains("free") -> "Free model · no credit used" to mutedColor
             creditText.isNotEmpty() -> creditText to creditColor
             v == null -> "Checking Fish credit..." to mutedColor
-            v < Credit.LOW -> "Fish credit low: ${Credit.format(v)} \u00b7 tap to refresh" to Color.parseColor("#FFB020")
+            v < Credit.LOW -> "Fish credit low: ${Credit.format(v)} · tap to refresh" to Color.parseColor("#FFB020")
             else -> "Fish credit: ${Credit.format(v)}" to mutedColor
         }
         creditPill.text = text
@@ -685,7 +700,7 @@ class MainActivity : Activity() {
 
         val title = label(page, "What's new", 30f, bold = true, color = Color.WHITE)
         title.gravity = Gravity.CENTER
-        val sub = label(page, "Lotus Aloud ${appVersion()} \u00b7 ${Edition.TAGLINE}", 13f, top = 2)
+        val sub = label(page, "Lotus Aloud ${appVersion()} · ${Edition.TAGLINE}", 13f, top = 2)
         sub.gravity = Gravity.CENTER
 
         if (!Edition.PLAY) {
@@ -868,7 +883,7 @@ class MainActivity : Activity() {
         if (Screenshots.canRead(this)) {
             toast("Done! Double-tap the lotus bubble to read your latest screenshot.")
         } else {
-            toast("Choose \u201cAllow all\u201d for photos so new screenshots can be read.")
+            toast("Choose “Allow all” for photos so new screenshots can be read.")
         }
         refreshSwitches()
     }
@@ -931,10 +946,9 @@ class MainActivity : Activity() {
         val n = Saved.list(this).size
         val kb = Saved.bytes(this) / 1024
         val size = if (kb >= 1024) "%.1f MB".format(kb / 1024.0) else "$kb KB"
-        return if (n == 0) "Nothing saved" else "$n saved \u00b7 $size"
+        return if (n == 0) "Nothing saved" else "$n saved · $size"
     }
 
-    /** The Saved Reads shelf. Only redraws when something changed. */
     private fun renderSaved() {
         if (!::savedBox.isInitialized) return
         val live = livePercent()
@@ -954,7 +968,6 @@ class MainActivity : Activity() {
         for (item in items) savedCard(item, item.id == playing, if (item.id == playing && live >= 0) live else item.percent)
     }
 
-    /** How far into the saved read that's playing right now, or -1. */
     private fun livePercent(): Int {
         if (ReadSession.savedId == null || ReadSession.count == 0) return -1
         val s = player.snapshot()
@@ -1008,7 +1021,7 @@ class MainActivity : Activity() {
         val now = System.currentTimeMillis()
         val ago = if (now - item.opened < 60_000) "just now"
         else DateUtils.getRelativeTimeSpanString(item.opened, now, DateUtils.MINUTE_IN_MILLIS).toString()
-        label(mid, "$kind \u00b7 about $length \u00b7 $ago", 12f, top = 2)
+        label(mid, "$kind · about $length · $ago", 12f, top = 2)
 
         val phase = player.snapshot().phase
         val active = playing && (phase == Phase.PLAYING || phase == Phase.PAUSED || phase == Phase.LOADING)
@@ -1026,9 +1039,9 @@ class MainActivity : Activity() {
         }
         if (pct < 100) track.addView(View(this), LinearLayout.LayoutParams(0, MATCH_PARENT, (100 - pct).toFloat()))
         val state = when {
-            active && phase == Phase.LOADING -> "Getting ready \u00b7 $pct%"
-            active && phase == Phase.PAUSED -> "Paused \u00b7 $pct%"
-            active -> "Playing \u00b7 $pct%"
+            active && phase == Phase.LOADING -> "Getting ready · $pct%"
+            active && phase == Phase.PAUSED -> "Paused · $pct%"
+            active -> "Playing · $pct%"
             item.done -> "Finished"
             pct > 0 -> "$pct% read"
             else -> "Not started"
@@ -1056,7 +1069,7 @@ class MainActivity : Activity() {
             savedStamp = -1L
         }
         val cast = Saved.cast(this, item.id)
-        val castText = if (cast != null && cast.on && cast.characters > 0) "Voices \u00b7 ${cast.characters}" else "Voices"
+        val castText = if (cast != null && cast.on && cast.characters > 0) "Voices · ${cast.characters}" else "Voices"
         val castBtn = button(buttons, castText, 1.1f) {
             CastScreen(this, item) { savedStamp = -1L; renderSaved() }.show()
         }
@@ -1091,7 +1104,7 @@ class MainActivity : Activity() {
             if (ReadSession.savedId == item.id) ReadSession.savedId = null
             Saved.remove(this, item.id)
             renderSaved()
-            toast("Removed \u201c${niceTitle(item.title)}\u201d.")
+            toast("Removed “${niceTitle(item.title)}”.")
         })
         android.app.AlertDialog.Builder(this)
             .setTitle(niceTitle(item.title))
@@ -1121,7 +1134,7 @@ class MainActivity : Activity() {
 
     private fun pickTheme() {
         val names = Look.THEMES.map { t ->
-            val sp = android.text.SpannableString("\u25CF  ${t.name}")
+            val sp = android.text.SpannableString("●  ${t.name}")
             sp.setSpan(ForegroundColorSpan(t.accent), 0, 1, 0)
             sp
         }.toTypedArray<CharSequence>()
@@ -1294,7 +1307,7 @@ class MainActivity : Activity() {
         if (!::summaryText.isInitialized) return
         val name = prefs.voices.firstOrNull { it.id == prefs.mainVoice }?.name ?: "Fish default"
         val credit = if (::creditPill.isInitialized) creditPill.text.toString() else ""
-        val txt = "Main voice  $name" + if (credit.isNotBlank()) "  \u00b7  $credit" else "  \u00b7  tap to add or change"
+        val txt = "Main voice  $name" + if (credit.isNotBlank()) "  ·  $credit" else "  ·  tap to add or change"
         val sp = android.text.SpannableString(txt)
         val st = txt.indexOf(name)
         sp.setSpan(ForegroundColorSpan(Look.soft), st, st + name.length, 0)
@@ -1303,7 +1316,7 @@ class MainActivity : Activity() {
 
     private fun chevron(parent: LinearLayout) {
         val ch = TextView(this)
-        ch.text = "\u203A"
+        ch.text = "›"
         ch.textSize = 22f
         ch.setTextColor(Look.dim)
         ch.setPadding(dp(8), 0, 0, 0)
@@ -1356,10 +1369,9 @@ class MainActivity : Activity() {
     }
 
     private fun translateText() =
-        if (prefs.translateTo.isBlank()) "Off \u00b7 reads in the original language"
-        else Translate.label(prefs.translateTo) + " \u00b7 everything is translated first"
+        if (prefs.translateTo.isBlank()) "Off · reads in the original language"
+        else Translate.label(prefs.translateTo) + " · everything is translated first"
 
-    /** Language pills on the Player tab: Off, your recent languages, and More. One tap to switch. */
     private fun renderLangBar() {
         if (!::langBar.isInitialized) return
         langBar.removeAllViews()
@@ -1372,7 +1384,7 @@ class MainActivity : Activity() {
         langPill("+ More", false) { pickTranslate() }
         if (::langCaption.isInitialized) {
             langCaption.text = if (current.isBlank()) "Hold a language to choose its voice"
-            else "${Translate.label(current)} is read by ${langVoiceName(current)} \u00b7 tap to change"
+            else "${Translate.label(current)} is read by ${langVoiceName(current)} · tap to change"
         }
     }
 
@@ -1386,13 +1398,12 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Pick which voice reads a language: automatic, the phone's voice for it, or one of your voices. */
     private fun pickLangVoice(lang: String) {
         val name = Translate.label(lang)
         val options = mutableListOf<Pair<String, String?>>()
         options.add("Automatic (your main voice)" to null)
-        options.add("Phone \u00b7 $name (free, made for $name)" to "phone:@$lang")
-        prefs.voices.forEach { v -> options.add("${v.name} \u00b7 ${Providers.label(v.id)}" to v.id) }
+        options.add("Phone · $name (free, made for $name)" to "phone:@$lang")
+        prefs.voices.forEach { v -> options.add("${v.name} · ${Providers.label(v.id)}" to v.id) }
         val current = options.indexOfFirst { it.second == prefs.langVoice(lang) }.coerceAtLeast(0)
         android.app.AlertDialog.Builder(this)
             .setTitle("Voice for $name")
@@ -1439,11 +1450,11 @@ class MainActivity : Activity() {
                 .setTitle("Reading in ${Translate.label(code)}")
                 .setMessage(
                     "Everything you read is translated first, then read out loud.\n\n" +
-                        "\u2022 Translation happens on your phone: free, and offline after the first time " +
+                        "• Translation happens on your phone: free, and offline after the first time " +
                         "(it downloads the language once, about 30 MB).\n\n" +
-                        "\u2022 Fish and ElevenLabs voices can speak it, including your own voice. " +
+                        "• Fish and ElevenLabs voices can speak it, including your own voice. " +
                         "Phone voices: pick one for that language in Voices.\n\n" +
-                        "\u2022 Tap \u201cOriginal\u201d on the Listen tab to switch back."
+                        "• Tap “Original” on the Listen tab to switch back."
                 )
                 .setPositiveButton("Got it", null)
                 .show()
@@ -1451,14 +1462,14 @@ class MainActivity : Activity() {
     }
 
     private fun skipText(): String {
-        if (!prefs.smartSkip) return "Off \u00b7 reads everything"
+        if (!prefs.smartSkip) return "Off · reads everything"
         val on = listOfNotNull(
             "headers & page numbers".takeIf { prefs.skipHeaders },
             "citations".takeIf { prefs.skipCitations },
             "links".takeIf { prefs.skipLinks },
             "reference lists".takeIf { prefs.skipRefs },
         )
-        return if (on.isEmpty()) "On \u00b7 nothing selected" else "Skips " + on.joinToString(", ") + " \u00b7 tap to choose"
+        return if (on.isEmpty()) "On · nothing selected" else "Skips " + on.joinToString(", ") + " · tap to choose"
     }
 
     private fun pickSkips(valueView: TextView) {
@@ -1485,13 +1496,12 @@ class MainActivity : Activity() {
 
     private fun sayText(): String {
         val n = prefs.sayRules.size
-        return if (n == 0) "Teach it how to say names and words" else "$n word${if (n == 1) "" else "s"} \u00b7 tap to edit"
+        return if (n == 0) "Teach it how to say names and words" else "$n word${if (n == 1) "" else "s"} · tap to edit"
     }
 
-    /** Your pronunciation list: tap a word to edit it, + to add one. */
     private fun showSayRules(valueView: TextView) {
         val rules = prefs.sayRules
-        val items = rules.map { "${it.word}  \u2192  ${it.sayAs}" }.toTypedArray()
+        val items = rules.map { "${it.word}  →  ${it.sayAs}" }.toTypedArray()
         val b = android.app.AlertDialog.Builder(this)
             .setTitle("Pronunciation")
             .setPositiveButton("+ Add word") { _, _ -> editSayRule(null, valueView) }
@@ -1499,7 +1509,7 @@ class MainActivity : Activity() {
         if (items.isEmpty()) {
             b.setMessage(
                 "Teach Lotus Aloud how to say things it gets wrong.\n\n" +
-                    "For example:\n\u2022 LSS \u2192 L S S\n\u2022 Nguyen \u2192 Win\n\u2022 gif \u2192 jif\n\n" +
+                    "For example:\n• LSS → L S S\n• Nguyen → Win\n• gif → jif\n\n" +
                     "It works with every voice, and Follow along still shows the original word."
             )
         } else {
@@ -1515,7 +1525,7 @@ class MainActivity : Activity() {
         val word = edit(box, "Word or phrase (e.g. LSS)", rule?.word ?: "")
         val say = edit(box, "Say it like (e.g. L S S)", rule?.sayAs ?: "")
         val dlg = android.app.AlertDialog.Builder(this)
-            .setTitle(if (rule == null) "Add a word" else "Edit \u201c${rule.word}\u201d")
+            .setTitle(if (rule == null) "Add a word" else "Edit “${rule.word}”")
             .setView(box)
             .setPositiveButton("Save", null)
             .setNeutralButton("Test", null)
@@ -1523,7 +1533,7 @@ class MainActivity : Activity() {
                 if (rule != null) {
                     prefs.sayRules = prefs.sayRules.filterNot { it == rule }
                     valueView.text = sayText()
-                    toast("Removed \u201c${rule.word}\u201d.")
+                    toast("Removed “${rule.word}”.")
                 }
             }
             .create()
@@ -1535,7 +1545,7 @@ class MainActivity : Activity() {
                 val list = prefs.sayRules.filterNot { it == rule || it.word.equals(w, ignoreCase = true) } + SayRule(w, s)
                 prefs.sayRules = list
                 valueView.text = sayText()
-                toast("Saved: \u201c$w\u201d is said \u201c$s\u201d.")
+                toast("Saved: “$w” is said “$s”.")
                 dlg.dismiss()
             }
             dlg.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
@@ -1549,7 +1559,7 @@ class MainActivity : Activity() {
 
     private fun savedText(): String {
         val mb = SpeechPlayer.savedBytes(this) / (1024.0 * 1024.0)
-        return "Keeps your last ${History.MAX} \u00b7 saved audio ${String.format("%.1f", mb)} MB (max 40 MB)"
+        return "Keeps your last ${History.MAX} · saved audio ${String.format("%.1f", mb)} MB (max 40 MB)"
     }
 
     private fun pickTranslate() {
@@ -1597,7 +1607,7 @@ class MainActivity : Activity() {
 
     private fun setMood(cue: String, valueView: TextView) {
         prefs.mood = cue
-        valueView.text = Moods.label(prefs.mood) + " \u00b7 Fish voices"
+        valueView.text = Moods.label(prefs.mood) + " · Fish voices"
         toast(if (cue.isBlank()) "Normal voice." else "Mood: ${Moods.label(prefs.mood)}. Try it by playing a voice.")
     }
 
@@ -1620,12 +1630,12 @@ class MainActivity : Activity() {
         android.app.AlertDialog.Builder(this)
             .setTitle("How to use")
             .setMessage(
-                "\u2022 Highlight text in any app and tap \u201cRead audio\u201d (look under \u22ee if you don't see it).\n\n" +
-                    "\u2022 Share text, a link or a screenshot to Lotus Aloud.\n\n" +
-                    "\u2022 In Opera or Messenger: copy the text, then tap the lotus bubble. Double-tap it to read your latest screenshot. " +
+                "• Highlight text in any app and tap “Read audio” (look under ⋮ if you don't see it).\n\n" +
+                    "• Share text, a link or a screenshot to Lotus Aloud.\n\n" +
+                    "• In Opera or Messenger: copy the text, then tap the lotus bubble. Double-tap it to read your latest screenshot. " +
                     "Tap it while reading to stop. Drag to move it, long-press to open the app.\n\n" +
-                    "\u2022 Or copy text and tap \u201cLotus Read\u201d in your swipe-down panel.\n\n" +
-                    "\u2022 Tap the notification, or the big lotus, to follow along with the text."
+                    "• Or copy text and tap “Lotus Read” in your swipe-down panel.\n\n" +
+                    "• Tap the notification, or the big lotus, to follow along with the text."
             )
             .setPositiveButton("Got it", null)
             .show()
@@ -1644,9 +1654,9 @@ class MainActivity : Activity() {
     }
 
     private fun serviceName(id: String, long: Boolean): String = when (Providers.of(id)) {
-        Providers.ELEVEN -> "ELEVENLABS"
-        Providers.PHONE -> "PHONE \u00b7 FREE"
-        else -> if (long) "FISH AUDIO" else "FISH"
+        Providers.ELEVEN -> "ELEVENLABS · CLOUD"
+        Providers.PHONE -> "PHONE · PRIVATE"
+        else -> if (long) "FISH AUDIO · CLOUD" else "FISH · CLOUD"
     }
 
     private fun withAlpha(c: Int, a: Int) = Color.argb(a, Color.red(c), Color.green(c), Color.blue(c))
@@ -1740,7 +1750,7 @@ class MainActivity : Activity() {
         val status = label(t, "", 12f)
         status.tag = dot
         val chev = TextView(this)
-        chev.text = "\u203A"
+        chev.text = "›"
         chev.textSize = 20f
         chev.setTextColor(Look.dim)
         r.addView(chev)
@@ -1760,7 +1770,7 @@ class MainActivity : Activity() {
     private fun refreshServices() {
         if (!::fishStatus.isInitialized) return
         for ((status, has) in listOf(fishStatus to prefs.apiKey.isNotBlank(), elevenStatus to prefs.elevenKey.isNotBlank())) {
-            status.text = if (has) "Connected" else "Not set up \u00b7 tap to add key"
+            status.text = if (has) "Connected" else "Not set up · tap to add key"
             (status.tag as? View)?.background = rounded((if (has) Color.parseColor("#2EA043") else Look.dim), 99)
         }
     }
@@ -1785,6 +1795,36 @@ class MainActivity : Activity() {
         pauseBtn.text = if (s.phase == Phase.PAUSED) "Resume" else "Pause"
         setOn(pauseBtn, s.phase == Phase.PLAYING || s.phase == Phase.PAUSED)
         setOn(stopBtn, s.phase == Phase.LOADING || s.phase == Phase.PLAYING || s.phase == Phase.PAUSED)
+    }
+
+    private fun saveCloudKey(service: String) {
+        val finish = {
+            saveKey()
+            checkCredit(force = true)
+            toast("Saved.")
+        }
+        if (prefs.cloudNoteSeen) finish() else showCloudNote(service) {
+            prefs.cloudNoteSeen = true
+            finish()
+        }
+    }
+
+    private fun showCloudNote(service: String? = null, onOk: (() -> Unit)? = null) {
+        val name = service ?: "Fish Audio and ElevenLabs"
+        val msg = "• Your key works like a password. It's saved only on this phone, never sent to us. Don't share it.\n\n" +
+            "• Text you play with $name voices is sent to $name to make the audio.\n\n" +
+            "• For private things like passwords, bank details, medical info or personal messages, use a Phone voice. Nothing leaves your phone.\n\n" +
+            "• Set a spending limit in your $name account. If you lose your phone, delete the key on their website."
+        val b = android.app.AlertDialog.Builder(this)
+            .setTitle(if (service != null) "Before you connect $service" else "Cloud voices and your privacy")
+            .setMessage(msg)
+        if (onOk != null) {
+            b.setPositiveButton("I understand") { _, _ -> onOk() }
+            b.setNegativeButton("Cancel", null)
+        } else {
+            b.setPositiveButton("Got it", null)
+        }
+        b.show()
     }
 
     private fun saveKey() {
@@ -1841,7 +1881,6 @@ class MainActivity : Activity() {
         }
     }
 
-    /** A short accent bar under the selected tab. */
     private fun tabMark(): android.graphics.drawable.Drawable {
         val bar = GradientDrawable().apply { cornerRadius = dp(2).toFloat(); setColor(accent) }
         val layer = android.graphics.drawable.LayerDrawable(arrayOf(bar))
@@ -1933,7 +1972,7 @@ class MainActivity : Activity() {
                         .setItems(choices.map { it.first }.toTypedArray()) { _, i ->
                             val (label, id) = choices[i]
                             val name = addNameEdit.text.toString().trim().ifEmpty {
-                                if (service == Providers.PHONE) "Phone \u00b7 ${label.substringBefore(" \u00b7")}" else label
+                                if (service == Providers.PHONE) "Phone · ${label.substringBefore(" ·")}" else label
                             }
                             addVoice(name, (if (service == Providers.ELEVEN) "eleven:" else "phone:") + id)
                         }

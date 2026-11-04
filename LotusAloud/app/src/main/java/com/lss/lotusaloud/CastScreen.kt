@@ -22,7 +22,6 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 
-/** The Voices screen for a saved read: the narrator and each character, and the voice that reads them. */
 class CastScreen(private val act: Activity, private val item: SavedRead, private val onClose: () -> Unit) {
     private val prefs = Prefs(act)
     private val main = Handler(Looper.getMainLooper())
@@ -116,7 +115,6 @@ class CastScreen(private val act: Activity, private val item: SavedRead, private
         }, "lotus-cast-scan").start()
     }
 
-    /** First scan: give each character a different voice from your list, if you have more than one. */
     private fun autoPick(s: Cast.Scan) {
         val others = prefs.voices.map { it.id }.filter { it != setup.narrator }
         if (others.isEmpty()) return

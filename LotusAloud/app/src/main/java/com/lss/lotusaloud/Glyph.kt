@@ -8,7 +8,6 @@ import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
 
-/** Simple one-color control shapes (play, pause, skip, close), drawn in the middle of whatever they're put on. */
 class Glyph(private val kind: Kind, color: Int, private val size: Float) : Drawable() {
     enum class Kind { PLAY, PAUSE, PREV, NEXT, CLOSE }
 

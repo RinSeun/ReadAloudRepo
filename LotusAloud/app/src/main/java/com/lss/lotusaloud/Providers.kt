@@ -39,7 +39,7 @@ object Providers {
 
     fun rawId(voiceId: String): String = voiceId.substringAfter(':', voiceId).let { if (of(voiceId) == FISH) voiceId else it }
 
-    fun label(voiceId: String): String = if (voiceId.startsWith("phone:@")) "Phone \u00b7 ${java.util.Locale(voiceId.removePrefix("phone:@")).displayLanguage}" else when (of(voiceId)) {
+    fun label(voiceId: String): String = if (voiceId.startsWith("phone:@")) "Phone · ${java.util.Locale(voiceId.removePrefix("phone:@")).displayLanguage}" else when (of(voiceId)) {
         ELEVEN -> "ElevenLabs"
         PHONE -> "Phone"
         else -> "Fish"
@@ -247,12 +247,11 @@ object PhoneTts {
             .filter { !it.isNetworkConnectionRequired }
             .sortedWith(compareBy({ it.locale.displayLanguage }, { it.name }))
             .map { v ->
-                val quality = if (v.quality >= android.speech.tts.Voice.QUALITY_VERY_HIGH) " \u00b7 HD" else ""
+                val quality = if (v.quality >= android.speech.tts.Voice.QUALITY_VERY_HIGH) " · HD" else ""
                 "${v.locale.displayName} · ${v.name.substringAfterLast('-')}$quality" to v.name
             }
     }
 
-    /** Best installed phone voice for a language, e.g. "ko". Null if the phone has none. */
     fun voiceFor(ctx: Context, lang: String): android.speech.tts.Voice? {
         val e = engine(ctx)
         return (e.voices ?: emptySet())
@@ -261,7 +260,6 @@ object PhoneTts {
             .firstOrNull()
     }
 
-    /** The language a phone voice speaks ("" = the phone's default voice). */
     fun languageOf(ctx: Context, voiceName: String): String {
         val e = engine(ctx)
         val v = if (voiceName.isBlank()) e.defaultVoice else e.voices?.firstOrNull { it.name == voiceName }
@@ -275,7 +273,7 @@ object PhoneTts {
             val v = voiceFor(ctx, lang)
                 ?: throw ProviderError(
                     "Your phone doesn't have a ${java.util.Locale(lang).displayLanguage} voice yet. " +
-                        "Settings \u2192 General management \u2192 Text-to-speech \u2192 settings gear \u2192 Install voice data."
+                        "Settings → General management → Text-to-speech → settings gear → Install voice data."
                 )
             e.voice = v
         } else if (voiceName.isNotBlank()) {
