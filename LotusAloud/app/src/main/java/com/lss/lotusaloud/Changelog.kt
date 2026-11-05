@@ -5,6 +5,13 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "Terms and privacy, up front",
+            listOf(
+                "The first time you open Lotus Aloud, a short welcome screen explains how your text and voices are handled, with links to the Terms of Use and Privacy Policy.",
+                "Only use voices you own or have permission to use. This reminder now also appears under Add a voice.",
+            ),
+        ),
+        Entry(
             "Fewer pauses between parts",
             listOf(
                 "Lotus Aloud now gets the very next part ready first, then the ones after it, instead of all at once. The next part arrives sooner, so there's less waiting.",

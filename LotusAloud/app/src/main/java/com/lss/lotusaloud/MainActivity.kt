@@ -596,11 +596,104 @@ class MainActivity : Activity() {
         updateBubbleButton()
         checkCredit(force = false)
 
-        if (prefs.seenChanges < Changelog.ENTRIES.size) {
-            val fresh = (Changelog.ENTRIES.size - prefs.seenChanges).coerceAtMost(Changelog.ENTRIES.size)
-            prefs.seenChanges = Changelog.ENTRIES.size
-            handler.post { showWhatsNew(fresh) }
+        val news = {
+            if (prefs.seenChanges < Changelog.ENTRIES.size) {
+                val fresh = (Changelog.ENTRIES.size - prefs.seenChanges).coerceAtMost(Changelog.ENTRIES.size)
+                prefs.seenChanges = Changelog.ENTRIES.size
+                handler.post { showWhatsNew(fresh) }
+            }
         }
+        if (prefs.termsAccepted < Edition.TERMS_VERSION) handler.post { showAgreement(news) } else news()
+    }
+
+    private fun openPage(url: String) {
+        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { toast("Couldn't open the browser.") }
+    }
+
+    private fun showAgreement(then: () -> Unit) {
+        val updated = prefs.termsAccepted > 0
+        val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
+        dlg.setCancelable(false)
+        val root = LinearLayout(this)
+        root.orientation = LinearLayout.VERTICAL
+        root.setBackgroundColor(bgColor)
+
+        val scroll = ScrollView(this)
+        val page = LinearLayout(this)
+        page.orientation = LinearLayout.VERTICAL
+        page.setPadding(dp(22), dp(36), dp(22), dp(16))
+        scroll.addView(page)
+        root.addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+
+        val logo = android.widget.ImageView(this)
+        logo.setImageResource(resources.getIdentifier("ic_lotus_hero", "drawable", packageName))
+        page.addView(logo, LinearLayout.LayoutParams(MATCH_PARENT, dp(110)))
+        val title = label(page, if (updated) "We've updated our terms" else "Welcome to Lotus Aloud", 28f, bold = true, color = Color.WHITE, top = 14)
+        title.gravity = Gravity.CENTER
+        val sub = label(page, Edition.TAGLINE, 13f, color = Look.soft, top = 2)
+        sub.gravity = Gravity.CENTER
+
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.background = rounded(cardColor, 20)
+        card.setPadding(dp(18), dp(16), dp(18), dp(16))
+        val clp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        clp.topMargin = dp(22)
+        page.addView(card, clp)
+        val points = listOf(
+            "Private by default" to "Phone voices never send your text anywhere. Your library, settings and keys stay on your phone.",
+            "AI voices" to "Fish Audio and ElevenLabs voices are AI-generated and use your own account. Text you play with them is sent to that service.",
+            "Use it fairly" to "Only read content you have the right to use, and only use voices you own or have permission to use. Never impersonate or mislead people.",
+        )
+        points.forEachIndexed { i, (h, b) ->
+            label(card, h, 15f, bold = true, color = Color.WHITE, top = if (i == 0) 0 else 14)
+            label(card, b, 13.5f, top = 3)
+        }
+
+        val links = LinearLayout(this)
+        links.gravity = Gravity.CENTER
+        val llp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        llp.topMargin = dp(18)
+        page.addView(links, llp)
+        fun link(text: String, url: String) {
+            val t = TextView(this)
+            t.text = text
+            t.textSize = 14.5f
+            t.setTypeface(t.typeface, Typeface.BOLD)
+            t.setTextColor(Look.soft)
+            t.paintFlags = t.paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+            t.setPadding(dp(10), dp(8), dp(10), dp(8))
+            t.setOnClickListener { openPage(url) }
+            links.addView(t)
+        }
+        link("Terms of Use", Edition.TERMS_URL)
+        link("Privacy Policy", Edition.PRIVACY_PAGE)
+
+        val bottom = LinearLayout(this)
+        bottom.orientation = LinearLayout.VERTICAL
+        bottom.setPadding(dp(18), dp(10), dp(18), dp(18))
+        val note = label(bottom, "By tapping Agree and continue, you agree to the Terms of Use and Privacy Policy.", 12.5f)
+        note.gravity = Gravity.CENTER
+        val agree = button(row(bottom, 10), "Agree and continue", 1f, primary = true) {
+            prefs.termsAccepted = Edition.TERMS_VERSION
+            dlg.dismiss()
+            then()
+        }
+        agree.textSize = 16f
+        agree.minHeight = dp(54)
+        val leave = label(bottom, "Not now", 14f, top = 6)
+        leave.gravity = Gravity.CENTER
+        leave.setPadding(0, dp(8), 0, dp(4))
+        leave.setOnClickListener {
+            dlg.dismiss()
+            finish()
+        }
+        root.addView(bottom, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        dlg.setContentView(root)
+        dlg.window?.statusBarColor = bgColor
+        Insets.apply(this, root)
+        dlg.show()
     }
 
     private fun showCredit() {

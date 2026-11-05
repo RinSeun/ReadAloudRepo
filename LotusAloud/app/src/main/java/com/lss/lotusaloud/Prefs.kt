@@ -58,6 +58,9 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("pureBlack", false)
         set(v) { sp.edit().putBoolean("pureBlack", v).apply() }
 
+    var termsAccepted: Int
+        get() = sp.getInt("termsAccepted", 0)
+        set(v) { sp.edit().putInt("termsAccepted", v).putLong("termsAcceptedAt", System.currentTimeMillis()).apply() }
     var cloudNoteSeen: Boolean
         get() = sp.getBoolean("cloudNoteSeen", false)
         set(v) { sp.edit().putBoolean("cloudNoteSeen", v).apply() }

@@ -10,6 +10,7 @@ import android.widget.Toast
 class ReadActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Edition.needsAgreement(this)) { Edition.askToAgree(this); return }
         val i = intent
         val isImage = i?.type?.startsWith("image/") == true
 

@@ -12,6 +12,7 @@ class ClipReadActivity : Activity() {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus || handled) return
         handled = true
+        if (Edition.needsAgreement(this)) { Edition.askToAgree(this); return }
 
         val text = try {
             val clip = getSystemService(ClipboardManager::class.java)?.primaryClip

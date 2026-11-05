@@ -11,6 +11,7 @@ class PickImageActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState != null) return
+        if (Edition.needsAgreement(this)) { Edition.askToAgree(this); return }
         val i = if (Build.VERSION.SDK_INT >= 33) Intent(MediaStore.ACTION_PICK_IMAGES)
         else Intent(Intent.ACTION_GET_CONTENT).setType("image/*")
         try {
