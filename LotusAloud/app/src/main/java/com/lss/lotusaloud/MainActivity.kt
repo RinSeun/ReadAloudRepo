@@ -672,15 +672,41 @@ class MainActivity : Activity() {
         val bottom = LinearLayout(this)
         bottom.orientation = LinearLayout.VERTICAL
         bottom.setPadding(dp(18), dp(10), dp(18), dp(18))
-        val note = label(bottom, "By tapping Agree and continue, you agree to the Terms of Use and Privacy Policy.", 12.5f)
-        note.gravity = Gravity.CENTER
-        val agree = button(row(bottom, 10), "Agree and continue", 1f, primary = true) {
+        lateinit var agree: Button
+        val checks = ArrayList<android.widget.CheckBox>()
+        fun refreshAgree() { agree.alpha = if (checks.all { it.isChecked }) 1f else 0.45f }
+        fun check(text: String) {
+            val r = LinearLayout(this)
+            r.gravity = Gravity.CENTER_VERTICAL
+            r.setPadding(0, dp(4), 0, dp(4))
+            val cb = android.widget.CheckBox(this)
+            val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
+            cb.buttonTintList = android.content.res.ColorStateList(states, intArrayOf(accent, mutedColor))
+            cb.setOnCheckedChangeListener { _, _ -> refreshAgree() }
+            r.addView(cb)
+            val t = TextView(this)
+            t.text = text
+            t.textSize = 15f
+            t.setTextColor(Look.text)
+            r.addView(t, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            r.setOnClickListener { cb.toggle() }
+            bottom.addView(r, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            checks.add(cb)
+        }
+        check("I agree to the Terms of Use")
+        check("I have read the Privacy Policy")
+        agree = button(row(bottom, 10), "Agree and continue", 1f, primary = true) {
+            if (!checks.all { it.isChecked }) {
+                toast("Tick both boxes to continue.")
+                return@button
+            }
             prefs.termsAccepted = Edition.TERMS_VERSION
             dlg.dismiss()
             then()
         }
         agree.textSize = 16f
         agree.minHeight = dp(54)
+        refreshAgree()
         val leave = label(bottom, "Not now", 14f, top = 6)
         leave.gravity = Gravity.CENTER
         leave.setPadding(0, dp(8), 0, dp(4))
