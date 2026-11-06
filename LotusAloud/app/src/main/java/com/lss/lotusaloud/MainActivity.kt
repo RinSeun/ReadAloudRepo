@@ -69,6 +69,7 @@ class MainActivity : Activity() {
     private lateinit var savedBox: LinearLayout
     private var savedStamp = -1L
     private var currentTab = 0
+    private var agreementShowing = false
     private var wasBlack = false
     private lateinit var bubbleSwitch: android.widget.Switch
     private lateinit var shotsSwitch: android.widget.Switch
@@ -615,6 +616,8 @@ class MainActivity : Activity() {
     }
 
     private fun showAgreement(then: () -> Unit) {
+        if (agreementShowing) return
+        agreementShowing = true
         val updated = prefs.termsAccepted > 0
         val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
         dlg.setCancelable(false)
@@ -662,9 +665,10 @@ class MainActivity : Activity() {
         val checks = ArrayList<android.widget.CheckBox>()
         val checkRows = ArrayList<LinearLayout>()
         val hints = ArrayList<TextView>()
-        val opened = BooleanArray(2)
+        val opened = BooleanArray(2) { i -> prefs.termsOpened and (1 shl i) != 0 }
         fun unlock(i: Int) {
             opened[i] = true
+            prefs.termsOpened = prefs.termsOpened or (1 shl i)
             if (i < checks.size) {
                 checks[i].isEnabled = true
                 checkRows[i].alpha = 1f
@@ -735,6 +739,7 @@ class MainActivity : Activity() {
                 return@button
             }
             prefs.termsAccepted = Edition.TERMS_VERSION
+            prefs.termsOpened = 0
             dlg.dismiss()
             then()
         }
@@ -752,6 +757,7 @@ class MainActivity : Activity() {
 
         dlg.setContentView(root)
         dlg.window?.statusBarColor = bgColor
+        dlg.setOnDismissListener { agreementShowing = false }
         Insets.apply(this, root)
         dlg.show()
     }

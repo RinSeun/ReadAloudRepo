@@ -61,6 +61,9 @@ class Prefs(context: Context) {
     var termsAccepted: Int
         get() = sp.getInt("termsAccepted", 0)
         set(v) { sp.edit().putInt("termsAccepted", v).putLong("termsAcceptedAt", System.currentTimeMillis()).apply() }
+    var termsOpened: Int
+        get() = sp.getInt("termsOpened", 0)
+        set(v) { sp.edit().putInt("termsOpened", v).commit() }
     var cloudNoteSeen: Boolean
         get() = sp.getBoolean("cloudNoteSeen", false)
         set(v) { sp.edit().putBoolean("cloudNoteSeen", v).apply() }
