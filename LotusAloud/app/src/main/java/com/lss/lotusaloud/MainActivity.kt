@@ -606,8 +606,12 @@ class MainActivity : Activity() {
         if (prefs.termsAccepted < Edition.TERMS_VERSION) handler.post { showAgreement(news) } else news()
     }
 
-    private fun openPage(url: String) {
-        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { toast("Couldn't open the browser.") }
+    private fun openPage(url: String): Boolean = try {
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        true
+    } catch (e: Exception) {
+        toast("Couldn't open the browser.")
+        false
     }
 
     private fun showAgreement(then: () -> Unit) {
@@ -655,7 +659,19 @@ class MainActivity : Activity() {
         val llp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         llp.topMargin = dp(18)
         page.addView(links, llp)
-        fun link(text: String, url: String) {
+        val checks = ArrayList<android.widget.CheckBox>()
+        val checkRows = ArrayList<LinearLayout>()
+        val hints = ArrayList<TextView>()
+        val opened = BooleanArray(2)
+        fun unlock(i: Int) {
+            opened[i] = true
+            if (i < checks.size) {
+                checks[i].isEnabled = true
+                checkRows[i].alpha = 1f
+                hints[i].visibility = View.GONE
+            }
+        }
+        fun link(text: String, url: String, index: Int) {
             val t = TextView(this)
             t.text = text
             t.textSize = 14.5f
@@ -663,41 +679,59 @@ class MainActivity : Activity() {
             t.setTextColor(Look.soft)
             t.paintFlags = t.paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
             t.setPadding(dp(10), dp(8), dp(10), dp(8))
-            t.setOnClickListener { openPage(url) }
+            t.setOnClickListener {
+                openPage(url)
+                unlock(index)
+            }
             links.addView(t)
         }
-        link("Terms of Use", Edition.TERMS_URL)
-        link("Privacy Policy", Edition.PRIVACY_PAGE)
+        link("Terms of Use", Edition.TERMS_URL, 0)
+        link("Privacy Policy", Edition.PRIVACY_PAGE, 1)
 
         val bottom = LinearLayout(this)
         bottom.orientation = LinearLayout.VERTICAL
         bottom.setPadding(dp(18), dp(10), dp(18), dp(18))
         lateinit var agree: Button
-        val checks = ArrayList<android.widget.CheckBox>()
         fun refreshAgree() { agree.alpha = if (checks.all { it.isChecked }) 1f else 0.45f }
-        fun check(text: String) {
+        fun check(text: String, page: String) {
+            val index = checks.size
             val r = LinearLayout(this)
             r.gravity = Gravity.CENTER_VERTICAL
             r.setPadding(0, dp(4), 0, dp(4))
             val cb = android.widget.CheckBox(this)
+            cb.isEnabled = opened[index]
+            r.alpha = if (opened[index]) 1f else 0.5f
             val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
             cb.buttonTintList = android.content.res.ColorStateList(states, intArrayOf(accent, mutedColor))
             cb.setOnCheckedChangeListener { _, _ -> refreshAgree() }
             r.addView(cb)
+            val words = LinearLayout(this)
+            words.orientation = LinearLayout.VERTICAL
             val t = TextView(this)
             t.text = text
             t.textSize = 15f
             t.setTextColor(Look.text)
-            r.addView(t, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-            r.setOnClickListener { cb.toggle() }
+            words.addView(t)
+            val hint = TextView(this)
+            hint.text = "Open the $page above first"
+            hint.textSize = 12f
+            hint.setTextColor(Look.soft)
+            hint.visibility = if (opened[index]) View.GONE else View.VISIBLE
+            words.addView(hint)
+            r.addView(words, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            r.setOnClickListener {
+                if (!opened[index]) toast("Open the $page first.") else cb.toggle()
+            }
             bottom.addView(r, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             checks.add(cb)
+            checkRows.add(r)
+            hints.add(hint)
         }
-        check("I agree to the Terms of Use")
-        check("I have read the Privacy Policy")
+        check("I agree to the Terms of Use", "Terms of Use")
+        check("I have read the Privacy Policy", "Privacy Policy")
         agree = button(row(bottom, 10), "Agree and continue", 1f, primary = true) {
             if (!checks.all { it.isChecked }) {
-                toast("Tick both boxes to continue.")
+                toast(if (!opened.all { it }) "Open the Terms of Use and Privacy Policy, then tick both boxes." else "Tick both boxes to continue.")
                 return@button
             }
             prefs.termsAccepted = Edition.TERMS_VERSION
