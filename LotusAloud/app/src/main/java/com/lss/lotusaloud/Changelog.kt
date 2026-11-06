@@ -5,6 +5,13 @@ object Changelog {
 
     val ENTRIES = listOf(
         Entry(
+            "Better Tagalog",
+            listOf(
+                "Tagalog now uses your phone's Filipino voice, so it sounds natural instead of being read with an English voice.",
+                "Tip: find Tagalog under + More in the language pills. If your phone has no Filipino voice yet, install it in Settings → Text-to-speech → Install voice data → Filipino.",
+            ),
+        ),
+        Entry(
             "Terms and privacy, up front",
             listOf(
                 "The first time you open Lotus Aloud, a short welcome screen explains how your text and voices are handled, with links to the Terms of Use and Privacy Policy.",

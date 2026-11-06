@@ -252,10 +252,19 @@ object PhoneTts {
             }
     }
 
+    fun sameLang(code: String): String = when (code.lowercase()) {
+        "fil", "tl" -> "tl"
+        "iw", "he" -> "he"
+        "in", "id" -> "id"
+        "nb", "no" -> "no"
+        else -> code.lowercase()
+    }
+
     fun voiceFor(ctx: Context, lang: String): android.speech.tts.Voice? {
         val e = engine(ctx)
+        val want = sameLang(lang)
         return (e.voices ?: emptySet())
-            .filter { it.locale.language == java.util.Locale(lang).language && !it.features.contains("notInstalled") }
+            .filter { sameLang(it.locale.language) == want && !it.features.contains("notInstalled") }
             .sortedWith(compareBy({ it.isNetworkConnectionRequired }, { -it.quality }))
             .firstOrNull()
     }
@@ -263,7 +272,7 @@ object PhoneTts {
     fun languageOf(ctx: Context, voiceName: String): String {
         val e = engine(ctx)
         val v = if (voiceName.isBlank()) e.defaultVoice else e.voices?.firstOrNull { it.name == voiceName }
-        return v?.locale?.language ?: java.util.Locale.getDefault().language
+        return sameLang(v?.locale?.language ?: java.util.Locale.getDefault().language)
     }
 
     fun synthesize(ctx: Context, text: String, voiceName: String): AudioSource = synchronized(useLock) {
@@ -272,7 +281,7 @@ object PhoneTts {
             val lang = voiceName.removePrefix("@")
             val v = voiceFor(ctx, lang)
                 ?: throw ProviderError(
-                    "Your phone doesn't have a ${java.util.Locale(lang).displayLanguage} voice yet. " +
+                    "Your phone doesn't have a ${if (sameLang(lang) == "tl") "Filipino (Tagalog)" else java.util.Locale(lang).displayLanguage} voice yet. " +
                         "Settings → General management → Text-to-speech → settings gear → Install voice data."
                 )
             e.voice = v

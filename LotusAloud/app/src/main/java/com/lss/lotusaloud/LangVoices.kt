@@ -11,7 +11,7 @@ object LangVoices {
         val main = prefs.mainVoice
         if (Providers.of(main) == Providers.PHONE) {
             val mainLang = try { PhoneTts.languageOf(ctx, Providers.rawId(main)) } catch (e: Exception) { return null }
-            if (mainLang != lang) return "phone:@$lang"
+            if (mainLang != PhoneTts.sameLang(lang)) return "phone:@$lang"
         }
         return null
     }
